@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
+  <Metadata>
+    <Identity Id="SsmsResultsGrid.8f1c9c2c-4f0a-4e9e-9d7b-1e2a4f3b0001" Version="0.1.0" Language="en-US" Publisher="Colton Spears" />
+    <DisplayName>Filterable Results Grid for SSMS 22</DisplayName>
+    <Description xml:space="preserve">Adds a dockable "Filterable Results" tool window that mirrors the most recent query result set with a top-right live-search filter box. Targets SQL Server Management Studio 22 (Visual Studio 2022 shell).</Description>
+    <MoreInfo>https://github.com/coltonspears/SsmsResultsGrid</MoreInfo>
+    <Icon>Resources\Icon.png</Icon>
+    <PreviewImage>Resources\Preview.png</PreviewImage>
+    <Tags>SSMS, SQL, Grid, Filter, Results</Tags>
+  </Metadata>
+  <Installation>
+    <!--
+      Identifiers verified against `vswhere -all -prerelease -products *`:
+        SSMS 22 registers as Microsoft.VisualStudio.Product.Ssms, version 22.x
+        VS 2022 Community/Pro/Enterprise registers as 17.x
+        VS 2026 Community/Pro/Enterprise registers as 18.x
+      SSMS uses its own version namespace in VS Setup (22.x, not the 17.x of
+      the underlying shell), so the version range must be [22.0,23.0).
+    -->
+    <InstallationTarget Id="Microsoft.VisualStudio.Product.Ssms" Version="[22.0,23.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Ssms" Version="[22.0,23.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Ssms.Community" Version="[22.0,23.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,19.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[17.0,19.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.0,19.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+  </Installation>
+  <Dependencies>
+    <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.7.2,)" />
+  </Dependencies>
+  <Prerequisites>
+    <!--
+      CoreEditor ships with every VS 17.x shell, including SSMS 22. The shell
+      version stays 17.x even though the product version is 22.x, so the
+      prerequisite range tracks the shell, not the product.
+    -->
+    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0,19.0)" DisplayName="Visual Studio core editor" />
+  </Prerequisites>
+  <Assets>
+    <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
+    <Asset Type="Microsoft.VisualStudio.MefComponent" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%|" />
+  </Assets>
+</PackageManifest>

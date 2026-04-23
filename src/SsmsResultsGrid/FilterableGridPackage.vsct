@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+
+  <Commands package="guidPackage">
+    <Groups>
+      <Group guid="guidCmdSet" id="ToolsMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
+      </Group>
+    </Groups>
+
+    <Buttons>
+      <Button guid="guidCmdSet" id="ShowFilterableGridCmd" priority="0x0100" type="Button">
+        <Parent guid="guidCmdSet" id="ToolsMenuGroup" />
+        <Icon guid="guidImages" id="bmpFilter" />
+        <Strings>
+          <ButtonText>Show Filterable Results Grid</ButtonText>
+          <CommandName>SsmsResultsGrid.ShowFilterableGrid</CommandName>
+        </Strings>
+      </Button>
+    </Buttons>
+
+    <Bitmaps>
+      <Bitmap guid="guidImages" href="Resources\Icon.png" usedList="bmpFilter" />
+    </Bitmaps>
+  </Commands>
+
+  <Symbols>
+    <GuidSymbol name="guidPackage" value="{8f1c9c2c-4f0a-4e9e-9d7b-1e2a4f3b0001}" />
+    <GuidSymbol name="guidCmdSet" value="{8f1c9c2c-4f0a-4e9e-9d7b-1e2a4f3b0002}">
+      <IDSymbol name="ToolsMenuGroup" value="0x1020" />
+      <IDSymbol name="ShowFilterableGridCmd" value="0x0100" />
+    </GuidSymbol>
+    <GuidSymbol name="guidImages" value="{8f1c9c2c-4f0a-4e9e-9d7b-1e2a4f3b0004}">
+      <IDSymbol name="bmpFilter" value="1" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>
