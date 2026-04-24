@@ -1,18 +1,21 @@
 # Filterable Results Grid for SSMS 22
 
-A VSIX extension that adds a dockable **Filterable Results** tool window to
-SQL Server Management Studio 22. When you execute a query, it mirrors the
-result set into a WPF `DataGrid` with a live filter box in the top right
-that substring-matches across every column.
+A VSIX extension for SQL Server Management Studio 22 that adds a filterable
+grid view tightly integrated with query results. When you execute a query, it
+mirrors the result set into a WPF `DataGrid` tab (next to Results/Messages
+when host discovery succeeds) with a live filter box in the top right that
+substring-matches across every column.
 
 ## What this does (and does not) do
 
 SSMS's built-in results grid (`Microsoft.SqlServer.Management.UI.Grid.GridControl`)
 is instantiated by internal SSMS code and is **not replaceable** through any
 public VSIX seam — there is no MEF/composition hook to swap it out. Instead,
-this extension ships a companion tool window that:
+this extension adds a companion view that is injected into the native
+Results/Messages tab host when possible (with a tool window fallback if SSMS
+layout internals differ), and:
 
-- Auto-opens and populates after each `Query.Execute` command.
+- Auto-refreshes after each `Query.Execute` command.
 - Reads the current active grid's contents via reflection against
   `GridControl.GridStorage` / `GetCellDataAsString`.
 - Provides a top-right filter box with debounced live search and a row
@@ -57,8 +60,8 @@ is not offered in the installer, drop the file here and restart SSMS:
 ## Use
 
 1. Open a query window and execute any `SELECT` in SSMS.
-2. The **Filterable Results** pane appears (or you can open it manually via
-   *Tools → Show Filterable Results Grid*).
+2. A **Filter** tab appears in the query's result area (or you can open it
+   manually via *Tools → Show Filterable Results Grid*).
 3. Type in the filter box in the top right — the grid narrows in real time.
 4. Hit **Refresh** to re-capture the current result set on demand.
 
@@ -74,7 +77,8 @@ src/SsmsResultsGrid/
 │   └── ShowFilterableGridCommand.cs   # Tools-menu command
 ├── Services/
 │   ├── QueryExecutionListener.cs      # priority command target → poll for results
-│   └── SsmsGridCaptureService.cs      # reflection against GridControl internals
+│   ├── SsmsGridCaptureService.cs      # reflection against GridControl internals
+│   └── InlineFilterTabService.cs      # injects/updates inline Filter tab
 └── ToolWindows/
     ├── FilterableGridToolWindow.cs
     ├── FilterableGridControl.xaml     # DataGrid + top-right filter TextBox

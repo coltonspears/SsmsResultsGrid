@@ -59,6 +59,7 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="WindowsFormsIntegration" />
   </ItemGroup>
 
   <ItemGroup>
@@ -75,6 +76,7 @@
     <Compile Include="Services\QueryExecutionListener.cs" />
     <Compile Include="Services\SsmsGridCaptureService.cs" />
     <Compile Include="Services\InlineReplacementProbe.cs" />
+    <Compile Include="Services\InlineFilterTabService.cs" />
     <Compile Include="ToolWindows\FilterableGridControl.xaml.cs">
       <DependentUpon>FilterableGridControl.xaml</DependentUpon>
     </Compile>

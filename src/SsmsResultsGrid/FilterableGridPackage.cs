@@ -21,6 +21,7 @@ namespace SsmsResultsGrid
         public static FilterableGridPackage Instance { get; private set; }
 
         internal SsmsGridCaptureService CaptureService { get; private set; }
+        internal InlineFilterTabService InlineTabService { get; private set; }
         internal QueryExecutionListener ExecutionListener { get; private set; }
 
         protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
@@ -30,6 +31,7 @@ namespace SsmsResultsGrid
 
             Instance = this;
             CaptureService = new SsmsGridCaptureService(this);
+            InlineTabService = new InlineFilterTabService();
             ExecutionListener = new QueryExecutionListener(this);
 
             await ShowFilterableGridCommand.InitializeAsync(this);
