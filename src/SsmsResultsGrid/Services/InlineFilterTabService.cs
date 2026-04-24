@@ -3,6 +3,7 @@ using System.Data;
 using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
+using System.Windows;
 using Microsoft.VisualStudio.Shell;
 using SsmsResultsGrid.ToolWindows;
 
@@ -44,6 +45,7 @@ namespace SsmsResultsGrid.Services
                     Name = FilterTabName,
                     Padding = Padding.Empty
                 };
+                filterPage.AutoScroll = false;
                 tabControl.TabPages.Add(filterPage);
                 firstLoad = true;
             }
@@ -55,9 +57,16 @@ namespace SsmsResultsGrid.Services
                 filterPage.Controls.Clear();
                 host = new ElementHost
                 {
-                    Dock = DockStyle.Fill
+                    Dock = DockStyle.Fill,
+                    Margin = Padding.Empty,
+                    Padding = Padding.Empty
                 };
-                control = new FilterableGridControl();
+                control = new FilterableGridControl
+                {
+                    Margin = new Thickness(0),
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
+                    VerticalAlignment = System.Windows.VerticalAlignment.Stretch
+                };
                 host.Child = control;
                 filterPage.Controls.Add(host);
                 firstLoad = true;

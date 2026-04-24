@@ -99,7 +99,7 @@ namespace SsmsResultsGrid.Services
             if (table != null && table.Rows.Count > 0)
             {
                 _pollTimer.Stop();
-                PushToSurface(table, null, _activeDocumentKey, activateInlineTab: false);
+                PushToSurface(table, null, _activeDocumentKey, activateInlineTab: true);
                 return;
             }
 
@@ -109,7 +109,7 @@ namespace SsmsResultsGrid.Services
                 // If we captured an empty grid, still push it so column headers show.
                 if (table != null)
                 {
-                    PushToSurface(table, null, _activeDocumentKey, activateInlineTab: false);
+                    PushToSurface(table, null, _activeDocumentKey, activateInlineTab: true);
                 }
                 else
                 {
@@ -122,7 +122,7 @@ namespace SsmsResultsGrid.Services
                     {
                         details += $" [poll-timeout after 60 attempts; candidates={diagnostics.CandidateCount}]";
                     }
-                    PushToSurface(null, details, _activeDocumentKey, activateInlineTab: false);
+                    PushToSurface(null, details, _activeDocumentKey, activateInlineTab: true);
                 }
             }
         }
