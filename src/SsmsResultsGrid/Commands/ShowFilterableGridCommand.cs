@@ -47,11 +47,11 @@ namespace SsmsResultsGrid.Commands
                 // Trigger an on-demand capture so the user sees current data immediately.
                 if (FilterableGridPackage.Instance?.CaptureService != null && window != null)
                 {
-                    var table = FilterableGridPackage.Instance.CaptureService.TryCaptureActive();
-                    if (table != null)
-                    {
-                        window.LoadData(table);
-                    }
+                    var table = FilterableGridPackage.Instance.CaptureService.TryCaptureActiveDetailed(out _);
+                    window.LoadCaptureResult(
+                        table,
+                        table == null ? FilterableGridPackage.Instance.CaptureService.LastFailureReason : null,
+                        contextKey: null);
                 }
             });
         }

@@ -11,6 +11,7 @@ namespace SsmsResultsGrid.ToolWindows
     {
         private DataView _view;
         private DispatcherTimer _debounce;
+        private string _lastDiagnostics;
 
         public FilterableGridControl()
         {
@@ -24,6 +25,7 @@ namespace SsmsResultsGrid.ToolWindows
                 ResultsGrid.ItemsSource = null;
                 StatusText.Text = "No results captured.";
                 _view = null;
+                SetDiagnostics(null);
                 return;
             }
 
@@ -31,6 +33,50 @@ namespace SsmsResultsGrid.ToolWindows
             ResultsGrid.ItemsSource = _view;
             UpdateStatus();
             ApplyFilter(FilterBox.Text);
+            SetDiagnostics(null);
+        }
+
+        public void LoadCaptureResult(DataTable table, string failureReason)
+        {
+            if (table == null)
+            {
+                ResultsGrid.ItemsSource = null;
+                _view = null;
+                var message = string.IsNullOrWhiteSpace(failureReason)
+                    ? "Unable to capture an active SSMS results grid."
+                    : failureReason;
+                StatusText.Text = FirstLine(message);
+                SetDiagnostics(message);
+                return;
+            }
+
+            LoadData(table);
+        }
+
+        private static string FirstLine(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message)) return string.Empty;
+            var firstNewline = message.IndexOf('\n');
+            if (firstNewline >= 0) return message.Substring(0, firstNewline).Trim();
+            return message.Trim();
+        }
+
+        private void SetDiagnostics(string rawMessage)
+        {
+            _lastDiagnostics = string.IsNullOrWhiteSpace(rawMessage) ? null : FormatDiagnostics(rawMessage);
+            DiagnosticsText.Text = _lastDiagnostics ?? string.Empty;
+            DiagnosticsBorder.Visibility = _lastDiagnostics == null ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        private static string FormatDiagnostics(string rawMessage)
+        {
+            var text = rawMessage.Replace(" [", "\n[");
+            text = text.Replace("; ", ";\n");
+            text = text.Replace(", ", ",\n");
+            text = text.Replace("sample=", "sample=\n");
+            text = text.Replace("managedTypes=", "managedTypes=\n");
+            text = text.Replace("win32Classes=", "win32Classes=\n");
+            return text;
         }
 
         private void UpdateStatus()
@@ -100,15 +146,24 @@ namespace SsmsResultsGrid.ToolWindows
         {
             var service = FilterableGridPackage.Instance?.CaptureService;
             if (service == null) return;
-            var table = service.TryCaptureActive();
+            var table = service.TryCaptureActiveDetailed(out _);
             if (table != null)
             {
                 LoadData(table);
             }
             else
             {
-                StatusText.Text = service.LastFailureReason ?? "Unable to capture an active SSMS results grid.";
+                var message = service.LastFailureReason ?? "Unable to capture an active SSMS results grid.";
+                StatusText.Text = FirstLine(message);
+                SetDiagnostics(message);
             }
+        }
+
+        private void CopyDiagnosticsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_lastDiagnostics)) return;
+            Clipboard.SetText(_lastDiagnostics);
+            StatusText.Text = "Capture diagnostics copied.";
         }
     }
 }

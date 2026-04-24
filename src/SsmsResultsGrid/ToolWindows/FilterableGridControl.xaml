@@ -72,5 +72,46 @@
                   VirtualizingPanel.VirtualizationMode="Recycling"
                   SelectionUnit="CellOrRowHeader"
                   ClipboardCopyMode="IncludeHeader" />
+
+        <Border x:Name="DiagnosticsBorder"
+                DockPanel.Dock="Bottom"
+                Margin="6,4,6,6"
+                Padding="6"
+                BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
+                BorderThickness="1"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Grid.Column="0"
+                           VerticalAlignment="Center"
+                           Opacity="0.8"
+                           Text="Capture diagnostics" />
+                <Button Grid.Row="0"
+                        Grid.Column="1"
+                        Padding="8,2"
+                        Click="CopyDiagnosticsButton_Click">Copy</Button>
+
+                <TextBox x:Name="DiagnosticsText"
+                         Grid.Row="1"
+                         Grid.Column="0"
+                         Grid.ColumnSpan="2"
+                         Margin="0,6,0,0"
+                         MinHeight="56"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled" />
+            </Grid>
+        </Border>
     </DockPanel>
 </UserControl>

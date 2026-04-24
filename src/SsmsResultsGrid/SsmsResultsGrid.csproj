@@ -66,14 +66,15 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.12.40391" ExcludeAssets="runtime" />
-    <PackageReference Include="Microsoft.VisualStudio.Shell.15.0" Version="17.12.40391" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.12.40392" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.Shell.15.0" Version="17.12.40392" ExcludeAssets="runtime" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="Commands\ShowFilterableGridCommand.cs" />
     <Compile Include="Services\QueryExecutionListener.cs" />
     <Compile Include="Services\SsmsGridCaptureService.cs" />
+    <Compile Include="Services\InlineReplacementProbe.cs" />
     <Compile Include="ToolWindows\FilterableGridControl.xaml.cs">
       <DependentUpon>FilterableGridControl.xaml</DependentUpon>
     </Compile>
