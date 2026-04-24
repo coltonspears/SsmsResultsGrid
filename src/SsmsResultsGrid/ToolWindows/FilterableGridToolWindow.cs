@@ -22,5 +22,19 @@ namespace SsmsResultsGrid.ToolWindows
             if (table == null) return;
             _control.LoadData(table);
         }
+
+        public void LoadCaptureResult(DataTable table, string failureReason, string contextKey)
+        {
+            if (!string.IsNullOrWhiteSpace(contextKey))
+            {
+                Caption = "Filterable Results - " + System.IO.Path.GetFileName(contextKey);
+            }
+            else
+            {
+                Caption = "Filterable Results";
+            }
+
+            _control.LoadCaptureResult(table, failureReason);
+        }
     }
 }

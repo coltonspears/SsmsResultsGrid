@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Windows.Threading;
 using Microsoft.VisualStudio;
@@ -21,13 +22,22 @@ namespace SsmsResultsGrid.Services
     internal sealed class QueryExecutionListener : IVsRunningDocTableEvents, IDisposable
     {
         private static readonly Guid SqlEditorCmdSet = new Guid("52692960-56BC-4989-B5D3-94C47B513AE0");
+        private static readonly Guid VsStd97CmdSet = VSConstants.GUID_VSStandardCommandSet97;
         private const uint ExecuteCmdId = 0x0100;
+        private static readonly HashSet<uint> AdditionalExecuteCommandIds = new HashSet<uint>
+        {
+            0x0101, // SSMS variants sometimes route "execute with options" through adjacent IDs.
+            0x0102
+        };
 
         private readonly FilterableGridPackage _package;
+        private readonly Dictionary<string, System.Data.DataTable> _sessionTables = new Dictionary<string, System.Data.DataTable>(StringComparer.OrdinalIgnoreCase);
         private IVsRunningDocumentTable _rdt;
         private uint _rdtCookie;
         private DispatcherTimer _pollTimer;
         private int _pollAttemptsLeft;
+        private string _activeDocumentKey;
+        private string _lastExecutionSource;
 
         public QueryExecutionListener(FilterableGridPackage package)
         {
@@ -63,12 +73,14 @@ namespace SsmsResultsGrid.Services
             }
         }
 
-        internal void OnQueryExecuted()
+        internal void OnQueryExecuted(string source)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
             // SSMS renders results asynchronously after the Execute command returns.
             // Poll every 500ms for up to 30s so streaming queries still populate.
+            _lastExecutionSource = source;
+            _activeDocumentKey = GetActiveDocumentKey();
             _pollAttemptsLeft = 60;
             if (_pollTimer == null)
             {
@@ -84,12 +96,13 @@ namespace SsmsResultsGrid.Services
             ThreadHelper.ThrowIfNotOnUIThread();
 
             _pollAttemptsLeft--;
-            var table = _package.CaptureService.TryCaptureActive();
+            var table = _package.CaptureService.TryCaptureActiveDetailed(out var diagnostics);
 
             if (table != null && table.Rows.Count > 0)
             {
                 _pollTimer.Stop();
-                PushToWindow(table);
+                StoreSessionTable(_activeDocumentKey, table);
+                PushToWindow(table, null, _activeDocumentKey);
                 return;
             }
 
@@ -97,11 +110,34 @@ namespace SsmsResultsGrid.Services
             {
                 _pollTimer.Stop();
                 // If we captured an empty grid, still push it so column headers show.
-                if (table != null) PushToWindow(table);
+                if (table != null)
+                {
+                    StoreSessionTable(_activeDocumentKey, table);
+                    PushToWindow(table, null, _activeDocumentKey);
+                }
+                else
+                {
+                    var details = _package.CaptureService.LastFailureReason ?? "Unable to capture an active SSMS results grid.";
+                    if (!string.IsNullOrEmpty(_lastExecutionSource))
+                    {
+                        details += $" [source={_lastExecutionSource}]";
+                    }
+                    if (diagnostics != null && diagnostics.CandidateCount > 0)
+                    {
+                        details += $" [poll-timeout after 60 attempts; candidates={diagnostics.CandidateCount}]";
+                    }
+                    PushToWindow(null, details, _activeDocumentKey);
+                }
             }
         }
 
-        private void PushToWindow(System.Data.DataTable table)
+        private void StoreSessionTable(string documentKey, System.Data.DataTable table)
+        {
+            if (string.IsNullOrWhiteSpace(documentKey) || table == null) return;
+            _sessionTables[documentKey] = table;
+        }
+
+        private void PushToWindow(System.Data.DataTable table, string failureReason, string documentKey)
         {
             _ = _package.JoinableTaskFactory.RunAsync(async () =>
             {
@@ -111,8 +147,41 @@ namespace SsmsResultsGrid.Services
                     0,
                     create: true,
                     cancellationToken: _package.DisposalToken) as FilterableGridToolWindow;
-                window?.LoadData(table);
+                window?.LoadCaptureResult(table, failureReason, documentKey);
             });
+        }
+
+        private string GetActiveDocumentKey()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (Package.GetGlobalService(typeof(SVsShellMonitorSelection)) is IVsMonitorSelection monitorSelection &&
+                monitorSelection.GetCurrentElementValue((uint)VSConstants.VSSELELEMID.SEID_WindowFrame, out var frameObj) == VSConstants.S_OK)
+            {
+                if (frameObj is IVsWindowFrame frame)
+                {
+                    return TryGetDocumentKeyFromFrame(frame);
+                }
+            }
+            return null;
+        }
+
+        private string TryGetDocumentKeyFromFrame(IVsWindowFrame frame)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (frame == null) return null;
+            if (frame.GetProperty((int)__VSFPROPID.VSFPROPID_pszMkDocument, out var mkObj) == VSConstants.S_OK)
+            {
+                var moniker = mkObj as string;
+                if (!string.IsNullOrWhiteSpace(moniker)) return moniker;
+            }
+
+            if (frame.GetProperty((int)__VSFPROPID.VSFPROPID_Caption, out var captionObj) == VSConstants.S_OK)
+            {
+                var caption = captionObj as string;
+                if (!string.IsNullOrWhiteSpace(caption)) return caption;
+            }
+
+            return null;
         }
 
         #region IVsRunningDocTableEvents (stubs)
@@ -120,7 +189,18 @@ namespace SsmsResultsGrid.Services
         public int OnBeforeLastDocumentUnlock(uint _, uint __, uint ___, uint ____) => VSConstants.S_OK;
         public int OnAfterSave(uint _) => VSConstants.S_OK;
         public int OnAfterAttributeChange(uint _, uint __) => VSConstants.S_OK;
-        public int OnBeforeDocumentWindowShow(uint _, int __, IVsWindowFrame ___) => VSConstants.S_OK;
+        public int OnBeforeDocumentWindowShow(uint _, int __, IVsWindowFrame frame)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            var key = TryGetDocumentKeyFromFrame(frame);
+            if (string.IsNullOrWhiteSpace(key)) return VSConstants.S_OK;
+
+            if (_sessionTables.TryGetValue(key, out var table))
+            {
+                PushToWindow(table, null, key);
+            }
+            return VSConstants.S_OK;
+        }
         public int OnAfterDocumentWindowHide(uint _, IVsWindowFrame __) => VSConstants.S_OK;
         #endregion
 
@@ -141,9 +221,14 @@ namespace SsmsResultsGrid.Services
 
             public int Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut)
             {
-                if (pguidCmdGroup == SqlEditorCmdSet && nCmdID == ExecuteCmdId)
+                if (pguidCmdGroup == SqlEditorCmdSet &&
+                    (nCmdID == ExecuteCmdId || AdditionalExecuteCommandIds.Contains(nCmdID)))
                 {
-                    try { _owner.OnQueryExecuted(); } catch { }
+                    try { _owner.OnQueryExecuted($"sql-cmd:{nCmdID:X4}"); } catch { }
+                }
+                else if (pguidCmdGroup == VsStd97CmdSet && nCmdID == (uint)VSConstants.VSStd97CmdID.Start)
+                {
+                    try { _owner.OnQueryExecuted("vsstd97-start"); } catch { }
                 }
                 return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
             }
