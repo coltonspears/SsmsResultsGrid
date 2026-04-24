@@ -133,14 +133,7 @@ namespace SsmsResultsGrid.Services
             {
                 await _package.JoinableTaskFactory.SwitchToMainThreadAsync();
                 var sourceGrid = _package.CaptureService.LastCapturedGridControl;
-                if (_package.InlineTabService != null &&
-                    _package.InlineTabService.TryShowOrUpdate(sourceGrid, table, failureReason, activateInlineTab, out _))
-                {
-                    return;
-                }
-
-                var window = await _package.ShowToolWindowAsync(typeof(ToolWindows.FilterableGridToolWindow), 0, create: true, cancellationToken: _package.DisposalToken) as ToolWindows.FilterableGridToolWindow;
-                window?.LoadCaptureResult(table, failureReason, documentKey);
+                _package.InlineTabService?.TryShowOrUpdate(sourceGrid, table, failureReason, activateInlineTab, out _);
             });
         }
 

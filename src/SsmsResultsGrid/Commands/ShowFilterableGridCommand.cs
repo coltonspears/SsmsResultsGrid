@@ -1,9 +1,6 @@
 using System;
 using System.ComponentModel.Design;
-using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.Shell.Interop;
-using SsmsResultsGrid.ToolWindows;
 using Task = System.Threading.Tasks.Task;
 
 namespace SsmsResultsGrid.Commands
@@ -45,25 +42,6 @@ namespace SsmsResultsGrid.Commands
                     {
                         return;
                     }
-                }
-
-                var window = await _package.ShowToolWindowAsync(
-                    typeof(FilterableGridToolWindow),
-                    0,
-                    create: true,
-                    cancellationToken: _package.DisposalToken) as FilterableGridToolWindow;
-                if (window == null) return;
-
-                if (window.Frame is IVsWindowFrame frame)
-                {
-                    ErrorHandler.ThrowOnFailure(frame.Show());
-                }
-
-                if (FilterableGridPackage.Instance?.CaptureService != null)
-                {
-                    var table = FilterableGridPackage.Instance.CaptureService.TryCaptureActiveDetailed(out _);
-                    var failure = table == null ? FilterableGridPackage.Instance.CaptureService.LastFailureReason : null;
-                    window.LoadCaptureResult(table, failure, contextKey: null);
                 }
             });
         }
