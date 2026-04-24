@@ -5,7 +5,6 @@ using System.Windows.Threading;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
-using SsmsResultsGrid.ToolWindows;
 using Task = System.Threading.Tasks.Task;
 
 namespace SsmsResultsGrid.Services
@@ -31,7 +30,6 @@ namespace SsmsResultsGrid.Services
         };
 
         private readonly FilterableGridPackage _package;
-        private readonly Dictionary<string, System.Data.DataTable> _sessionTables = new Dictionary<string, System.Data.DataTable>(StringComparer.OrdinalIgnoreCase);
         private IVsRunningDocumentTable _rdt;
         private uint _rdtCookie;
         private DispatcherTimer _pollTimer;
@@ -101,8 +99,7 @@ namespace SsmsResultsGrid.Services
             if (table != null && table.Rows.Count > 0)
             {
                 _pollTimer.Stop();
-                StoreSessionTable(_activeDocumentKey, table);
-                PushToWindow(table, null, _activeDocumentKey);
+                PushToSurface(table, null, _activeDocumentKey, activateInlineTab: false);
                 return;
             }
 
@@ -112,8 +109,7 @@ namespace SsmsResultsGrid.Services
                 // If we captured an empty grid, still push it so column headers show.
                 if (table != null)
                 {
-                    StoreSessionTable(_activeDocumentKey, table);
-                    PushToWindow(table, null, _activeDocumentKey);
+                    PushToSurface(table, null, _activeDocumentKey, activateInlineTab: false);
                 }
                 else
                 {
@@ -126,27 +122,24 @@ namespace SsmsResultsGrid.Services
                     {
                         details += $" [poll-timeout after 60 attempts; candidates={diagnostics.CandidateCount}]";
                     }
-                    PushToWindow(null, details, _activeDocumentKey);
+                    PushToSurface(null, details, _activeDocumentKey, activateInlineTab: false);
                 }
             }
         }
 
-        private void StoreSessionTable(string documentKey, System.Data.DataTable table)
-        {
-            if (string.IsNullOrWhiteSpace(documentKey) || table == null) return;
-            _sessionTables[documentKey] = table;
-        }
-
-        private void PushToWindow(System.Data.DataTable table, string failureReason, string documentKey)
+        private void PushToSurface(System.Data.DataTable table, string failureReason, string documentKey, bool activateInlineTab)
         {
             _ = _package.JoinableTaskFactory.RunAsync(async () =>
             {
                 await _package.JoinableTaskFactory.SwitchToMainThreadAsync();
-                var window = await _package.ShowToolWindowAsync(
-                    typeof(FilterableGridToolWindow),
-                    0,
-                    create: true,
-                    cancellationToken: _package.DisposalToken) as FilterableGridToolWindow;
+                var sourceGrid = _package.CaptureService.LastCapturedGridControl;
+                if (_package.InlineTabService != null &&
+                    _package.InlineTabService.TryShowOrUpdate(sourceGrid, table, failureReason, activateInlineTab, out _))
+                {
+                    return;
+                }
+
+                var window = await _package.ShowToolWindowAsync(typeof(ToolWindows.FilterableGridToolWindow), 0, create: true, cancellationToken: _package.DisposalToken) as ToolWindows.FilterableGridToolWindow;
                 window?.LoadCaptureResult(table, failureReason, documentKey);
             });
         }
@@ -192,13 +185,6 @@ namespace SsmsResultsGrid.Services
         public int OnBeforeDocumentWindowShow(uint _, int __, IVsWindowFrame frame)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            var key = TryGetDocumentKeyFromFrame(frame);
-            if (string.IsNullOrWhiteSpace(key)) return VSConstants.S_OK;
-
-            if (_sessionTables.TryGetValue(key, out var table))
-            {
-                PushToWindow(table, null, key);
-            }
             return VSConstants.S_OK;
         }
         public int OnAfterDocumentWindowHide(uint _, IVsWindowFrame __) => VSConstants.S_OK;

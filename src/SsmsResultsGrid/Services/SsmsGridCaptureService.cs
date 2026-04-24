@@ -38,6 +38,7 @@ namespace SsmsResultsGrid.Services
         public SsmsGridCaptureService(AsyncPackage _ = null) { }
 
         public string LastFailureReason { get; private set; }
+        internal Control LastCapturedGridControl { get; private set; }
 
         public DataTable TryCaptureActive()
         {
@@ -48,6 +49,7 @@ namespace SsmsResultsGrid.Services
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             LastFailureReason = null;
+            LastCapturedGridControl = null;
             diagnostics = new CaptureDiagnostics();
 
             try
@@ -64,6 +66,7 @@ namespace SsmsResultsGrid.Services
                     return null;
                 }
 
+                LastCapturedGridControl = grid;
                 var table = ExtractFromSsmsGrid(grid);
                 if (table == null)
                 {
