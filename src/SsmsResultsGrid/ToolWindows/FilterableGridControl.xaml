@@ -11,111 +11,182 @@
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch">
     <UserControl.Resources>
+        <SolidColorBrush x:Key="AccentBrush" Color="#2D7D9A" />
+        <SolidColorBrush x:Key="AccentBrushSoft" Color="#332D7D9A" />
+
         <Style TargetType="TextBox">
-            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Padding" Value="8,3" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
+            <Setter Property="Background" Value="{StaticResource AccentBrushSoft}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+        </Style>
+
+        <Style TargetType="DataGridRow">
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AccentBrushSoft}" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
 
-    <DockPanel LastChildFill="True">
-        <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+    <Border Margin="6"
+            BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
+            BorderThickness="1"
+            Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}">
+        <DockPanel LastChildFill="True">
+            <Border DockPanel.Dock="Top"
+                    BorderBrush="{StaticResource AccentBrush}"
+                    BorderThickness="0,0,0,2"
+                    Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                    Padding="8,7">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="120" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-            <TextBlock x:Name="StatusText"
-                       Grid.Column="0"
-                       VerticalAlignment="Center"
-                       Opacity="0.75"
-                       Text="No results captured. Run a query in SSMS." />
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock FontWeight="SemiBold" Text="Filterable Results" />
+                        <TextBlock x:Name="StatusText"
+                                   Margin="0,1,0,0"
+                                   FontSize="11"
+                                   Opacity="0.72"
+                                   Text="No results captured. Run a query in SSMS." />
+                    </StackPanel>
 
-            <Button x:Name="RefreshButton"
-                    Grid.Column="1"
-                    Margin="0,0,6,0"
-                    Padding="8,2"
-                    Click="RefreshButton_Click"
-                    ToolTip="Re-capture the current SSMS results grid">Refresh</Button>
+                    <Button x:Name="RefreshButton"
+                            Grid.Column="1"
+                            Margin="0,0,8,0"
+                            Click="RefreshButton_Click"
+                            ToolTip="Re-capture the current SSMS results grid">Refresh</Button>
 
-            <Grid Grid.Column="2" Width="240">
-                <TextBox x:Name="FilterBox"
-                         TextChanged="FilterBox_TextChanged"
-                         ToolTip="Substring match across all columns (case-insensitive)." />
-                <TextBlock IsHitTestVisible="False"
-                           Margin="6,0,0,0"
-                           VerticalAlignment="Center"
-                           Foreground="Gray"
-                           Text="Filter results...">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Text, ElementName=FilterBox}" Value="">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Grid>
-        </Grid>
+                    <Grid Grid.Column="2"
+                          Width="260"
+                          VerticalAlignment="Center">
+                        <TextBox x:Name="FilterBox"
+                                 Padding="8,3,28,3"
+                                 TextChanged="FilterBox_TextChanged"
+                                 ToolTip="Substring match across all columns (case-insensitive)." />
+                        <TextBlock IsHitTestVisible="False"
+                                   Margin="9,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Opacity="0.58"
+                                   Text="Filter rows...">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=FilterBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <Button x:Name="ClearFilterButton"
+                                Width="20"
+                                Height="20"
+                                MinHeight="20"
+                                Padding="0"
+                                Margin="0,0,3,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Click="ClearFilterButton_Click"
+                                ToolTip="Clear filter"
+                                Visibility="Collapsed">x</Button>
+                    </Grid>
+                </Grid>
+            </Border>
 
-        <DataGrid x:Name="ResultsGrid"
-                  HorizontalAlignment="Stretch"
-                  VerticalAlignment="Stretch"
-                  AutoGenerateColumns="True"
-                  CanUserAddRows="False"
-                  CanUserDeleteRows="False"
-                  IsReadOnly="True"
-                  HeadersVisibility="All"
-                  GridLinesVisibility="All"
-                  EnableRowVirtualization="True"
-                  EnableColumnVirtualization="True"
-                  VirtualizingPanel.IsVirtualizing="True"
-                  VirtualizingPanel.VirtualizationMode="Recycling"
-                  SelectionUnit="CellOrRowHeader"
-                  ClipboardCopyMode="IncludeHeader" />
+            <DataGrid x:Name="ResultsGrid"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      AutoGenerateColumns="True"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      IsReadOnly="True"
+                      HeadersVisibility="All"
+                      GridLinesVisibility="Horizontal"
+                      HorizontalGridLinesBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
+                      VerticalGridLinesBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
+                      RowBackground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                      AlternatingRowBackground="{StaticResource AccentBrushSoft}"
+                      Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                      Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                      BorderThickness="0"
+                      RowHeaderWidth="0"
+                      EnableRowVirtualization="True"
+                      EnableColumnVirtualization="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      SelectionUnit="CellOrRowHeader"
+                      ClipboardCopyMode="IncludeHeader" />
 
-        <Border x:Name="DiagnosticsBorder"
-                DockPanel.Dock="Bottom"
-                Margin="0,4,0,0"
-                Padding="6"
-                BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
-                BorderThickness="1"
-                Visibility="Collapsed">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+            <Border x:Name="DiagnosticsBorder"
+                    DockPanel.Dock="Bottom"
+                    Margin="8"
+                    Padding="8"
+                    BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
+                    BorderThickness="1"
+                    Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                    Visibility="Collapsed">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Row="0"
-                           Grid.Column="0"
-                           VerticalAlignment="Center"
-                           Opacity="0.8"
-                           Text="Capture diagnostics" />
-                <Button Grid.Row="0"
-                        Grid.Column="1"
-                        Padding="8,2"
-                        Click="CopyDiagnosticsButton_Click">Copy</Button>
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Opacity="0.8"
+                               Text="Capture diagnostics" />
+                    <Button Grid.Row="0"
+                            Grid.Column="1"
+                            Click="CopyDiagnosticsButton_Click">Copy</Button>
 
-                <TextBox x:Name="DiagnosticsText"
-                         Grid.Row="1"
-                         Grid.Column="0"
-                         Grid.ColumnSpan="2"
-                         Margin="0,6,0,0"
-                         MinHeight="56"
-                         IsReadOnly="True"
-                         AcceptsReturn="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Disabled" />
-            </Grid>
-        </Border>
-    </DockPanel>
+                    <TextBox x:Name="DiagnosticsText"
+                             Grid.Row="1"
+                             Grid.Column="0"
+                             Grid.ColumnSpan="2"
+                             Margin="0,6,0,0"
+                             MinHeight="56"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Disabled" />
+                </Grid>
+            </Border>
+        </DockPanel>
+    </Border>
 </UserControl>

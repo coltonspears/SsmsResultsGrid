@@ -18,6 +18,21 @@ namespace SsmsResultsGrid.ToolWindows
             InitializeComponent();
         }
 
+        public event EventHandler FilterTextChanged;
+
+        public string FilterText
+        {
+            get => FilterBox.Text ?? string.Empty;
+            set
+            {
+                var next = value ?? string.Empty;
+                if (!string.Equals(FilterBox.Text, next, StringComparison.Ordinal))
+                {
+                    FilterBox.Text = next;
+                }
+            }
+        }
+
         public void LoadData(DataTable table)
         {
             if (table == null)
@@ -83,7 +98,7 @@ namespace SsmsResultsGrid.ToolWindows
         {
             if (_view == null)
             {
-                StatusText.Text = "No results captured.";
+                StatusText.Text = "No captured rows";
                 return;
             }
             var total = _view.Table.Rows.Count;
@@ -95,6 +110,11 @@ namespace SsmsResultsGrid.ToolWindows
 
         private void FilterBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+            ClearFilterButton.Visibility = string.IsNullOrEmpty(FilterBox.Text)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            FilterTextChanged?.Invoke(this, EventArgs.Empty);
+
             // Debounce so filtering stays responsive on large result sets.
             if (_debounce == null)
             {
@@ -157,6 +177,12 @@ namespace SsmsResultsGrid.ToolWindows
                 StatusText.Text = FirstLine(message);
                 SetDiagnostics(message);
             }
+        }
+
+        private void ClearFilterButton_Click(object sender, RoutedEventArgs e)
+        {
+            FilterBox.Clear();
+            FilterBox.Focus();
         }
 
         private void CopyDiagnosticsButton_Click(object sender, RoutedEventArgs e)
