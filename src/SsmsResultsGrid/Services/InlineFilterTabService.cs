@@ -10,16 +10,13 @@ using SsmsResultsGrid.ToolWindows;
 namespace SsmsResultsGrid.Services
 {
     /// <summary>
-    /// Hosts the filterable grid beside SSMS's native results grid when the
-    /// grid host can be safely wrapped. Falls back to the older sibling tab
-    /// approach when SSMS changes the immediate host shape.
+    /// Hosts the filterable grid beside SSMS's native results grid by wrapping
+    /// the existing results tab contents in a split view.
     /// </summary>
     internal sealed class InlineFilterTabService
     {
         private const string InlineSplitName = "__SsmsResultsGrid_InlineSplit";
         private const string InlineHostName = "__SsmsResultsGrid_FilterHost";
-        private const string FilterTabName = "__SsmsResultsGrid_FilterTab";
-        private const string FilterTabTitle = "Filter";
         private string _lastFilterText = string.Empty;
 
         public bool TryShowOrUpdate(Control sourceGrid, DataTable table, string failureReason, bool activateTab, out string reason)
@@ -33,20 +30,13 @@ namespace SsmsResultsGrid.Services
                 return false;
             }
 
-            if (TryShowBesideSourceGrid(sourceGrid, table, failureReason, out reason))
+            if (!TryFindTabHost(sourceGrid, out _, out var currentPage, out reason))
             {
-                return true;
+                return false;
             }
 
-            return TryShowInSiblingTab(sourceGrid, table, failureReason, activateTab, out reason);
-        }
-
-        private bool TryShowBesideSourceGrid(Control sourceGrid, DataTable table, string failureReason, out string reason)
-        {
-            reason = "inline-split-unavailable";
-
-            if (!TryGetExistingSplit(sourceGrid, out var split) &&
-                !TryCreateSplitAroundSourceGrid(sourceGrid, out split, out reason))
+            if (!TryGetExistingSplit(currentPage, sourceGrid, out var split) &&
+                !TryCreateSplitAroundResultsPage(currentPage, out split, out reason))
             {
                 return false;
             }
@@ -62,13 +52,25 @@ namespace SsmsResultsGrid.Services
             control.LoadCaptureResult(table, failureReason);
             _lastFilterText = control.FilterText;
 
+            if (activateTab && currentPage.Parent is TabControl tabControl)
+            {
+                tabControl.SelectedTab = currentPage;
+            }
+
             reason = "ok-inline-split";
             return true;
         }
 
-        private static bool TryGetExistingSplit(Control sourceGrid, out SplitContainer split)
+        private static bool TryGetExistingSplit(TabPage currentPage, Control sourceGrid, out SplitContainer split)
         {
             split = null;
+            split = currentPage.Controls.OfType<SplitContainer>()
+                .FirstOrDefault(candidate => string.Equals(candidate.Name, InlineSplitName, StringComparison.Ordinal));
+            if (split != null)
+            {
+                return true;
+            }
+
             for (var node = sourceGrid; node != null; node = node.Parent)
             {
                 if (node is SplitContainer candidate &&
@@ -81,70 +83,59 @@ namespace SsmsResultsGrid.Services
             return false;
         }
 
-        private static bool TryCreateSplitAroundSourceGrid(Control sourceGrid, out SplitContainer split, out string reason)
+        private static bool TryCreateSplitAroundResultsPage(TabPage currentPage, out SplitContainer split, out string reason)
         {
             split = null;
-            reason = "source-grid-parent-null";
+            reason = "results-page-empty";
 
-            var parent = sourceGrid.Parent;
-            if (parent == null)
+            if (currentPage == null || currentPage.Controls.Count == 0)
             {
                 return false;
             }
 
-            if (parent is SplitterPanel && parent.Parent is SplitContainer existing &&
-                string.Equals(existing.Name, InlineSplitName, StringComparison.Ordinal))
-            {
-                split = existing;
-                reason = "ok-existing-inline-split";
-                return true;
-            }
-
-            var childIndex = parent.Controls.GetChildIndex(sourceGrid);
-            var originalDock = sourceGrid.Dock;
-            var originalAnchor = sourceGrid.Anchor;
-            var originalBounds = sourceGrid.Bounds;
-            var originalMargin = sourceGrid.Margin;
+            var existingControls = currentPage.Controls.Cast<Control>().ToList();
 
             split = new SplitContainer
             {
                 Name = InlineSplitName,
                 Orientation = Orientation.Vertical,
-                Dock = originalDock,
-                Anchor = originalAnchor,
-                Bounds = originalBounds,
-                Margin = originalMargin,
+                Dock = DockStyle.Fill,
                 Panel1MinSize = 220,
                 Panel2MinSize = 280,
                 SplitterWidth = 5,
                 TabStop = false
             };
+            split.Panel1MinSize = 220;
+            split.Panel2MinSize = 280;
+            split.Panel1.Padding = Padding.Empty;
+            split.Panel2.Padding = Padding.Empty;
 
-            parent.SuspendLayout();
+            currentPage.SuspendLayout();
             split.Panel1.SuspendLayout();
             try
             {
-                parent.Controls.Remove(sourceGrid);
-                sourceGrid.Dock = DockStyle.Fill;
-                sourceGrid.Margin = Padding.Empty;
-                split.Panel1.Controls.Add(sourceGrid);
-                parent.Controls.Add(split);
-                parent.Controls.SetChildIndex(split, childIndex);
+                currentPage.Controls.Clear();
+                currentPage.Controls.Add(split);
+                foreach (var control in existingControls)
+                {
+                    split.Panel1.Controls.Add(control);
+                }
             }
             finally
             {
                 split.Panel1.ResumeLayout();
-                parent.ResumeLayout();
+                currentPage.ResumeLayout();
             }
 
             ConfigureSplitterDistance(split);
+            var createdSplit = split;
             EventHandler firstSize = null;
             firstSize = (sender, args) =>
             {
-                split.SizeChanged -= firstSize;
-                ConfigureSplitterDistance(split);
+                createdSplit.SizeChanged -= firstSize;
+                ConfigureSplitterDistance(createdSplit);
             };
-            split.SizeChanged += firstSize;
+            createdSplit.SizeChanged += firstSize;
 
             reason = "ok-created-inline-split";
             return true;
@@ -165,52 +156,6 @@ namespace SsmsResultsGrid.Services
 
             var preferredDistance = Math.Max(split.Panel1MinSize, (int)(split.Width * 0.58));
             split.SplitterDistance = Math.Min(preferredDistance, maxDistance);
-        }
-
-        private bool TryShowInSiblingTab(Control sourceGrid, DataTable table, string failureReason, bool activateTab, out string reason)
-        {
-            reason = "tab-host-unavailable";
-
-            if (!TryFindTabHost(sourceGrid, out var tabControl, out _, out reason))
-            {
-                return false;
-            }
-
-            var filterPage = tabControl.TabPages.Cast<TabPage>()
-                .FirstOrDefault(page => string.Equals(page.Name, FilterTabName, StringComparison.Ordinal));
-
-            var firstLoad = false;
-            if (filterPage == null)
-            {
-                filterPage = new TabPage(FilterTabTitle)
-                {
-                    Name = FilterTabName,
-                    Padding = Padding.Empty
-                };
-                filterPage.AutoScroll = false;
-                tabControl.TabPages.Add(filterPage);
-                firstLoad = true;
-            }
-
-            var control = GetOrCreateFilterControl(filterPage.Controls);
-            TrackFilterText(control);
-            firstLoad = firstLoad || filterPage.Controls.Count == 1;
-
-            if (!string.IsNullOrEmpty(control.FilterText) || string.IsNullOrEmpty(_lastFilterText))
-            {
-                _lastFilterText = control.FilterText;
-            }
-            control.FilterText = _lastFilterText;
-            control.LoadCaptureResult(table, failureReason);
-            _lastFilterText = control.FilterText;
-
-            if (activateTab || (firstLoad && tabControl.SelectedTab == null))
-            {
-                tabControl.SelectedTab = filterPage;
-            }
-
-            reason = "ok";
-            return true;
         }
 
         private void TrackFilterText(FilterableGridControl control)
