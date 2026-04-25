@@ -82,6 +82,7 @@
       <DependentUpon>FilterableGridControl.xaml</DependentUpon>
     </Compile>
     <Compile Include="ToolWindows\FilterableGridToolWindow.cs" />
+    <Compile Include="ToolWindows\TextHighlight.cs" />
     <Compile Include="FilterableGridPackage.cs" />
     <Compile Include="PackageGuids.cs" />
   </ItemGroup>

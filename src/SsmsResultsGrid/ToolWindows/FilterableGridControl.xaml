@@ -4,49 +4,497 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             xmlns:vsui="clr-namespace:Microsoft.VisualStudio.PlatformUI;assembly=Microsoft.VisualStudio.Shell.15.0"
              mc:Ignorable="d"
              Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
              Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
-             d:DesignHeight="400" d:DesignWidth="800"
+             TextOptions.TextFormattingMode="Display"
+             TextOptions.TextRenderingMode="ClearType"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True"
+             d:DesignHeight="460" d:DesignWidth="900"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch">
     <UserControl.Resources>
-        <SolidColorBrush x:Key="AccentBrush" Color="#2D7D9A" />
-        <SolidColorBrush x:Key="AccentBrushSoft" Color="#332D7D9A" />
+        <!--  Theme-aware accent palette.  Keys resolve from the running VS shell (Light/Dark/Blue/High-Contrast)  -->
+        <!--  by referencing the Color variants of EnvironmentColors and wrapping them in SolidColorBrushes  -->
+        <!--  so we can reuse them (and, where needed, dial opacity down for subtle tints).  -->
+        <SolidColorBrush x:Key="Accent.Border"
+                         Color="{DynamicResource {x:Static vsui:EnvironmentColors.AccentBorderColorKey}}" />
+        <SolidColorBrush x:Key="Accent.Medium"
+                         Color="{DynamicResource {x:Static vsui:EnvironmentColors.AccentMediumColorKey}}" />
+        <SolidColorBrush x:Key="Accent.Light"
+                         Color="{DynamicResource {x:Static vsui:EnvironmentColors.AccentLightColorKey}}" />
+        <SolidColorBrush x:Key="Accent.Pale"
+                         Color="{DynamicResource {x:Static vsui:EnvironmentColors.AccentPaleColorKey}}" />
 
+        <!--  Subtle row zebra tint: accent pale with reduced opacity.  -->
+        <SolidColorBrush x:Key="Row.Zebra"
+                         Color="{DynamicResource {x:Static vsui:EnvironmentColors.AccentPaleColorKey}}"
+                         Opacity="0.35" />
+
+        <!--  Highlight for matched substrings in filtered cells.  -->
+        <SolidColorBrush x:Key="Match.Background" Color="#66F1C40F" />
+        <SolidColorBrush x:Key="Match.Foreground"
+                         Color="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextColorKey}}" />
+
+        <!--  Vector glyphs — all authored in a 16x16 viewport, no font dependency.  -->
+        <!--  Outline icons are designed for Stroke rendering; the two sort triangles are filled.  -->
+        <Geometry x:Key="Icon.Refresh">M13.5,4 L13.5,7 L10.5,7 M13.5,7 A5.5,5.5 0 1 1 8,1.5</Geometry>
+        <Geometry x:Key="Icon.Copy">M5.5,5.5 L11,5.5 L11,13 L5.5,13 Z M7,3.5 L12.5,3.5 L12.5,11</Geometry>
+        <Geometry x:Key="Icon.Export">M8,2 L8,9 M5,6 L8,9 L11,6 M3,11 L13,11</Geometry>
+        <Geometry x:Key="Icon.Clear">M4,4 L12,12 M12,4 L4,12</Geometry>
+        <Geometry x:Key="Icon.Search">M2,6.5 A4.5,4.5 0 1 1 11,6.5 A4.5,4.5 0 1 1 2,6.5 Z M9.5,9.5 L13,13</Geometry>
+        <Geometry x:Key="Icon.SortAsc">M3,9 L8,4 L13,9 Z</Geometry>
+        <Geometry x:Key="Icon.SortDesc">M3,7 L13,7 L8,12 Z</Geometry>
+
+        <!--  Shared focus visual: thin accent ring via a FocusVisualStyle resource.  -->
+        <Style x:Key="Focus.Ring" TargetType="{x:Type Control}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Control}">
+                        <Border Margin="-2"
+                                BorderBrush="{DynamicResource Accent.Border}"
+                                BorderThickness="1"
+                                CornerRadius="2"
+                                SnapsToDevicePixels="True" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  TextBox: flat, accent border on focus.  -->
         <Style TargetType="TextBox">
             <Setter Property="MinHeight" Value="26" />
-            <Setter Property="Padding" Value="8,3" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
-            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}" />
-            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
-        </Style>
-
-        <Style TargetType="Button">
-            <Setter Property="MinHeight" Value="26" />
-            <Setter Property="Padding" Value="10,3" />
-            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
-            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}" />
-            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
-        </Style>
-
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="MinHeight" Value="28" />
             <Setter Property="Padding" Value="8,4" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ComboBoxBackgroundKey}}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource Accent.Medium}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="0"
+                                          Padding="{TemplateBinding Padding}"
+                                          Background="Transparent"
+                                          VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Light}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Border}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  Base flat button used by the toolbar.  -->
+        <Style TargetType="Button" x:Key="FlatButton">
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Padding" Value="12,4" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter x:Name="Cp"
+                                              Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True"
+                                              SnapsToDevicePixels="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Accent.Pale}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Light}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Accent.Light}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Border}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Border}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  Default for any unstyled Button in this UserControl.  -->
+        <Style TargetType="Button" BasedOn="{StaticResource FlatButton}" />
+
+        <!--  Icon-only square button for the inline clear X.  -->
+        <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+            <Setter Property="MinHeight" Value="20" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <!--  ComboBox items share the flat palette.  -->
+        <Style x:Key="FlatComboBoxItem" TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Accent.Pale}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Accent.Light}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ComboBoxItem" BasedOn="{StaticResource FlatComboBoxItem}" />
+
+        <!--  ComboBox: flat background, chevron toggle, popup matches toolbar palette.  -->
+        <Style TargetType="ComboBox">
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Padding" Value="10,3,6,3" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ComboBoxBackgroundKey}}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Grid.ColumnSpan="2"
+                                          ClickMode="Press"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          Background="{TemplateBinding Background}"
+                                          BorderBrush="{TemplateBinding BorderBrush}"
+                                          BorderThickness="{TemplateBinding BorderThickness}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Bd"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="2"
+                                                SnapsToDevicePixels="True">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="18" />
+                                                </Grid.ColumnDefinitions>
+                                                <Path Grid.Column="1"
+                                                      Width="9"
+                                                      Height="5"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Data="M0,0 L4.5,4.5 L9,0 Z"
+                                                      Fill="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                                                      Opacity="0.75" />
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Light}" />
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Border}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ContentSite"
+                                              Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Left"
+                                              VerticalAlignment="Center"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                              TextBlock.Foreground="{TemplateBinding Foreground}" />
+                            <Popup x:Name="Popup"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom"
+                                   PopupAnimation="Fade">
+                                <Grid MinWidth="{TemplateBinding ActualWidth}"
+                                      MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                      SnapsToDevicePixels="True">
+                                    <Border Margin="0,1,0,0"
+                                            Background="{DynamicResource {x:Static vsshell:VsBrushes.ComboBoxBackgroundKey}}"
+                                            BorderBrush="{DynamicResource Accent.Light}"
+                                            BorderThickness="1"
+                                            SnapsToDevicePixels="True">
+                                        <ScrollViewer>
+                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{DynamicResource Accent.Border}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  CheckBox: flat check.  -->
+        <Style TargetType="CheckBox">
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+            <Setter Property="Padding" Value="4,0,0,0" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Border x:Name="Box"
+                                    Width="14"
+                                    Height="14"
+                                    VerticalAlignment="Center"
+                                    BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource {x:Static vsshell:VsBrushes.ComboBoxBackgroundKey}}"
+                                    CornerRadius="2"
+                                    SnapsToDevicePixels="True">
+                                <Path x:Name="Check"
+                                      Margin="2"
+                                      Stretch="Uniform"
+                                      Data="M0,5 L4,9 L10,1"
+                                      Stroke="{DynamicResource Accent.Border}"
+                                      StrokeThickness="1.6"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      Visibility="Collapsed" />
+                            </Border>
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Accent.Border}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Accent.Light}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Accent.Border}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  DataGrid column headers: flat, sort indicator, accent on hover.  -->
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="10,6" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="BorderThickness" Value="0,0,1,1" />
             <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
-            <Setter Property="Background" Value="{StaticResource AccentBrushSoft}" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}" />
             <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+            <Setter Property="SeparatorBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridColumnHeader">
+                        <Grid>
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    SnapsToDevicePixels="True">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter Grid.Column="0"
+                                                      Margin="{TemplateBinding Padding}"
+                                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                      VerticalAlignment="Center"
+                                                      RecognizesAccessKey="True"
+                                                      SnapsToDevicePixels="True" />
+                                    <Path x:Name="SortArrow"
+                                          Grid.Column="1"
+                                          Width="9"
+                                          Height="6"
+                                          Margin="4,0,8,0"
+                                          VerticalAlignment="Center"
+                                          Fill="{DynamicResource Accent.Border}"
+                                          Data="{StaticResource Icon.SortAsc}"
+                                          Visibility="Collapsed" />
+                                </Grid>
+                            </Border>
+                            <!--  Accent underline when sorted  -->
+                            <Border x:Name="SortUnderline"
+                                    Height="2"
+                                    VerticalAlignment="Bottom"
+                                    Background="{DynamicResource Accent.Border}"
+                                    Visibility="Collapsed" />
+                            <Thumb x:Name="PART_LeftHeaderGripper"
+                                   Width="2"
+                                   HorizontalAlignment="Left"
+                                   Cursor="SizeWE">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Border Background="Transparent" />
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                            <Thumb x:Name="PART_RightHeaderGripper"
+                                   Width="2"
+                                   HorizontalAlignment="Right"
+                                   Cursor="SizeWE">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Border Background="Transparent" />
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Accent.Pale}" />
+                            </Trigger>
+                            <Trigger Property="SortDirection" Value="Ascending">
+                                <Setter TargetName="SortArrow" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="SortArrow" Property="Data" Value="{StaticResource Icon.SortAsc}" />
+                                <Setter TargetName="SortUnderline" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="SortDirection" Value="Descending">
+                                <Setter TargetName="SortArrow" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="SortArrow" Property="Data" Value="{StaticResource Icon.SortDesc}" />
+                                <Setter TargetName="SortUnderline" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
+        <!--  Row header: flat number column.  -->
+        <Style TargetType="DataGridRowHeader">
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Opacity" Value="0.72" />
+            <Setter Property="HorizontalContentAlignment" Value="Right" />
+        </Style>
+
+        <!--  Row: subtle hover + accent selected state.  -->
         <Style TargetType="DataGridRow">
-            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="MinHeight" Value="26" />
             <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
             <Style.Triggers>
+                <Trigger Property="AlternationIndex" Value="1">
+                    <Setter Property="Background" Value="{DynamicResource Row.Zebra}" />
+                </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource AccentBrushSoft}" />
+                    <Setter Property="Background" Value="{DynamicResource Accent.Pale}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Accent.Light}" />
+                    <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  Cell: no dotted focus rect, accent selected bg.  -->
+        <Style TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"
+                                              SnapsToDevicePixels="True" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Accent.Medium}" />
+                    <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+                    <Setter Property="BorderBrush" Value="Transparent" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -57,135 +505,193 @@
             BorderThickness="1"
             Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}">
         <DockPanel LastChildFill="True">
-            <Border DockPanel.Dock="Top"
-                    BorderBrush="{StaticResource AccentBrush}"
-                    BorderThickness="0,0,0,2"
-                    Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
-                    Padding="8,7">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" MinWidth="220" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock FontWeight="SemiBold" Text="Results View" />
+            <!--  TOOLBAR  -->
+            <Border DockPanel.Dock="Top"
+                    BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
+                    BorderThickness="0,0,0,1"
+                    Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                    Padding="10,8">
+                <DockPanel LastChildFill="True">
+
+                    <!--  Title + status on the left  -->
+                    <StackPanel DockPanel.Dock="Left"
+                                VerticalAlignment="Center"
+                                Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Rectangle Width="3"
+                                       Height="14"
+                                       Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       Fill="{DynamicResource Accent.Border}"
+                                       RadiusX="1.5"
+                                       RadiusY="1.5" />
+                            <TextBlock FontWeight="SemiBold"
+                                       FontSize="13"
+                                       VerticalAlignment="Center"
+                                       Text="Results View" />
+                        </StackPanel>
                         <TextBlock x:Name="StatusText"
-                                   Margin="0,1,0,0"
+                                   Margin="11,2,0,0"
                                    FontSize="11"
                                    Opacity="0.72"
                                    Text="No results captured. Run a query in SSMS." />
                     </StackPanel>
 
-                    <Button x:Name="RefreshButton"
-                            Grid.Column="1"
-                            Margin="0,0,8,0"
-                            Click="RefreshButton_Click"
-                            ToolTip="Re-capture the current SSMS results grid">Refresh</Button>
+                    <!--  Filter group pinned to the right  -->
+                    <StackPanel DockPanel.Dock="Right"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <ComboBox x:Name="FilterModeBox"
+                                  Width="112"
+                                  Margin="0,0,8,0"
+                                  SelectedIndex="0"
+                                  SelectionChanged="FilterModeBox_SelectionChanged"
+                                  ToolTip="Filter mode">
+                            <ComboBoxItem Content="Contains" />
+                            <ComboBoxItem Content="Starts With" />
+                            <ComboBoxItem Content="Exact Match" />
+                        </ComboBox>
 
-                    <Button x:Name="CopySelectedButton"
-                            Grid.Column="2"
-                            Margin="0,0,8,0"
-                            Click="CopySelectedButton_Click"
-                            ToolTip="Copy selected cells/rows including headers">Copy Selected</Button>
+                        <CheckBox x:Name="MatchCaseCheckBox"
+                                  Margin="0,0,12,0"
+                                  VerticalAlignment="Center"
+                                  Checked="MatchCaseCheckBox_Changed"
+                                  Unchecked="MatchCaseCheckBox_Changed"
+                                  ToolTip="Case-sensitive filtering"
+                                  Content="Match case" />
 
-                    <Button x:Name="ExportCsvButton"
-                            Grid.Column="3"
-                            Margin="0,0,8,0"
-                            Click="ExportCsvButton_Click"
-                            ToolTip="Export currently visible rows to CSV">Export CSV</Button>
+                        <!--  Filter box with search glyph + inline clear.  Left/right padding on  -->
+                        <!--  the TextBox accounts for the 1px border so the caret lines up with  -->
+                        <!--  the placeholder and the icons sit in dedicated gutters.  -->
+                        <Grid Width="280" VerticalAlignment="Center">
+                            <TextBox x:Name="FilterBox"
+                                     Padding="27,4,26,4"
+                                     TextChanged="FilterBox_TextChanged"
+                                     ToolTip="Substring match across all columns." />
+                            <Path Width="14"
+                                  Height="14"
+                                  Margin="8,0,0,0"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center"
+                                  Data="{StaticResource Icon.Search}"
+                                  Stroke="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                                  StrokeThickness="1.2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Opacity="0.55"
+                                  IsHitTestVisible="False" />
+                            <TextBlock IsHitTestVisible="False"
+                                       Margin="28,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                                       Opacity="0.55"
+                                       Text="Filter rows...">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=FilterBox}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <Button x:Name="ClearFilterButton"
+                                    Style="{StaticResource IconButton}"
+                                    Margin="0,0,4,0"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                                    Click="ClearFilterButton_Click"
+                                    ToolTip="Clear filter"
+                                    Visibility="Collapsed">
+                                <Path Width="9"
+                                      Height="9"
+                                      Data="{StaticResource Icon.Clear}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.4"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round" />
+                            </Button>
+                        </Grid>
+                    </StackPanel>
 
-                    <ComboBox x:Name="FilterModeBox"
-                              Grid.Column="4"
-                              Width="108"
-                              Margin="0,0,8,0"
-                              SelectedIndex="0"
-                              SelectionChanged="FilterModeBox_SelectionChanged"
-                              ToolTip="Filter mode">
-                        <ComboBoxItem Content="Contains" />
-                        <ComboBoxItem Content="Starts With" />
-                        <ComboBoxItem Content="Exact Match" />
-                    </ComboBox>
-
-                    <CheckBox x:Name="MatchCaseCheckBox"
-                              Grid.Column="5"
-                              Margin="0,0,8,0"
-                              VerticalAlignment="Center"
-                              Checked="MatchCaseCheckBox_Changed"
-                              Unchecked="MatchCaseCheckBox_Changed"
-                              ToolTip="Case-sensitive filtering"
-                              Content="Match case" />
-
-                    <Grid Grid.Column="6"
-                          Width="260"
-                          VerticalAlignment="Center">
-                        <TextBox x:Name="FilterBox"
-                                 Padding="8,3,28,3"
-                                 TextChanged="FilterBox_TextChanged"
-                                 ToolTip="Substring match across all columns (case-insensitive)." />
-                        <TextBlock IsHitTestVisible="False"
-                                   Margin="9,0,0,0"
-                                   VerticalAlignment="Center"
-                                   Opacity="0.58"
-                                   Text="Filter rows...">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Text, ElementName=FilterBox}" Value="">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <Button x:Name="ClearFilterButton"
-                                Width="20"
-                                Height="20"
-                                MinHeight="20"
-                                Padding="0"
-                                Margin="0,0,3,0"
+                    <!--  Action buttons fill the middle (gives them room, right-aligned)  -->
+                    <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
-                                Click="ClearFilterButton_Click"
-                                ToolTip="Clear filter"
-                                Visibility="Collapsed">x</Button>
-                    </Grid>
-                </Grid>
+                                Margin="0,0,12,0">
+                        <Button x:Name="RefreshButton"
+                                Margin="0,0,6,0"
+                                Click="RefreshButton_Click"
+                                ToolTip="Re-capture the current SSMS results grid">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Width="14"
+                                      Height="14"
+                                      Margin="0,0,7,0"
+                                      VerticalAlignment="Center"
+                                      Data="{StaticResource Icon.Refresh}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.3"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round" />
+                                <TextBlock Text="Refresh"
+                                           VerticalAlignment="Center"
+                                           FontSize="12" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="CopySelectedButton"
+                                Margin="0,0,6,0"
+                                Click="CopySelectedButton_Click"
+                                ToolTip="Copy selected cells/rows including headers">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Width="14"
+                                      Height="14"
+                                      Margin="0,0,7,0"
+                                      VerticalAlignment="Center"
+                                      Data="{StaticResource Icon.Copy}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.3"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round" />
+                                <TextBlock Text="Copy"
+                                           VerticalAlignment="Center"
+                                           FontSize="12" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="ExportCsvButton"
+                                Click="ExportCsvButton_Click"
+                                ToolTip="Export currently visible rows to CSV">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Width="14"
+                                      Height="14"
+                                      Margin="0,0,7,0"
+                                      VerticalAlignment="Center"
+                                      Data="{StaticResource Icon.Export}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.3"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round" />
+                                <TextBlock Text="Export CSV"
+                                           VerticalAlignment="Center"
+                                           FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </DockPanel>
             </Border>
 
-            <DataGrid x:Name="ResultsGrid"
-                      HorizontalAlignment="Stretch"
-                      VerticalAlignment="Stretch"
-                      LoadingRow="ResultsGrid_LoadingRow"
-                      AutoGenerateColumns="True"
-                      CanUserAddRows="False"
-                      CanUserDeleteRows="False"
-                      IsReadOnly="True"
-                      HeadersVisibility="All"
-                      GridLinesVisibility="Horizontal"
-                      HorizontalGridLinesBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
-                      VerticalGridLinesBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
-                      RowBackground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
-                      AlternatingRowBackground="{StaticResource AccentBrushSoft}"
-                      Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
-                      Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
-                      BorderThickness="0"
-                      RowHeaderWidth="52"
-                      EnableRowVirtualization="True"
-                      EnableColumnVirtualization="True"
-                      VirtualizingPanel.IsVirtualizing="True"
-                      VirtualizingPanel.VirtualizationMode="Recycling"
-                      SelectionUnit="CellOrRowHeader"
-                      ClipboardCopyMode="IncludeHeader" />
-
+            <!--  STATUS BAR  -->
             <Border DockPanel.Dock="Bottom"
                     Margin="0"
-                    Padding="8,5"
+                    Padding="10,6"
                     BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
                     BorderThickness="0,1,0,0"
                     Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}">
@@ -199,31 +705,38 @@
                     <TextBlock x:Name="SummaryText"
                                Grid.Column="0"
                                VerticalAlignment="Center"
+                               FontSize="11"
                                Opacity="0.75"
                                Text="Rows: 0 | Columns: 0" />
                     <TextBlock x:Name="FilterLatencyText"
                                Grid.Column="1"
-                               Margin="12,0,0,0"
+                               Margin="16,0,0,0"
                                VerticalAlignment="Center"
+                               FontSize="11"
                                Opacity="0.75"
                                Text="Filter: ready" />
                     <TextBlock x:Name="LastUpdatedText"
                                Grid.Column="2"
-                               Margin="12,0,0,0"
+                               Margin="16,0,0,0"
                                VerticalAlignment="Center"
+                               FontSize="11"
                                Opacity="0.75"
                                Text="Updated: --" />
                 </Grid>
             </Border>
 
+            <!--  DIAGNOSTICS  -->
             <Border x:Name="DiagnosticsBorder"
                     DockPanel.Dock="Bottom"
-                    Margin="8,0,8,8"
-                    Padding="8"
+                    Margin="10,0,10,10"
+                    Padding="10"
                     BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
                     BorderThickness="1"
                     Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
                     Visibility="Collapsed">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="6" Opacity="0.12" ShadowDepth="1" />
+                </Border.Effect>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -234,22 +747,48 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               VerticalAlignment="Center"
-                               FontWeight="SemiBold"
-                               Opacity="0.8"
-                               Text="Capture diagnostics" />
+                    <StackPanel Grid.Row="0"
+                                Grid.Column="0"
+                                Orientation="Horizontal">
+                        <Rectangle Width="3"
+                                   Height="12"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"
+                                   Fill="#E74C3C"
+                                   RadiusX="1.5"
+                                   RadiusY="1.5" />
+                        <TextBlock VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="Capture diagnostics" />
+                    </StackPanel>
                     <Button Grid.Row="0"
                             Grid.Column="1"
-                            Click="CopyDiagnosticsButton_Click">Copy</Button>
+                            Click="CopyDiagnosticsButton_Click">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Width="12"
+                                  Height="12"
+                                  Margin="0,0,7,0"
+                                  VerticalAlignment="Center"
+                                  Data="{StaticResource Icon.Copy}"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.3"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round" />
+                            <TextBlock Text="Copy"
+                                       VerticalAlignment="Center"
+                                       FontSize="12" />
+                        </StackPanel>
+                    </Button>
 
                     <TextBox x:Name="DiagnosticsText"
                              Grid.Row="1"
                              Grid.Column="0"
                              Grid.ColumnSpan="2"
                              Margin="0,6,0,0"
-                             MinHeight="56"
+                             MinHeight="64"
+                             FontFamily="Consolas"
+                             FontSize="11"
                              IsReadOnly="True"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
@@ -257,6 +796,56 @@
                              HorizontalScrollBarVisibility="Disabled" />
                 </Grid>
             </Border>
+
+            <!--  DATA GRID  -->
+            <DataGrid x:Name="ResultsGrid"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      LoadingRow="ResultsGrid_LoadingRow"
+                      AutoGenerateColumns="True"
+                      AutoGeneratingColumn="ResultsGrid_AutoGeneratingColumn"
+                      AlternationCount="2"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      IsReadOnly="True"
+                      HeadersVisibility="All"
+                      GridLinesVisibility="Horizontal"
+                      HorizontalGridLinesBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
+                      VerticalGridLinesBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
+                      RowBackground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                      Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                      Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                      BorderThickness="0"
+                      RowHeaderWidth="52"
+                      EnableRowVirtualization="True"
+                      EnableColumnVirtualization="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      VirtualizingPanel.ScrollUnit="Pixel"
+                      SelectionUnit="CellOrRowHeader"
+                      ClipboardCopyMode="IncludeHeader">
+                <DataGrid.Resources>
+                    <!--  Top-left corner "select all" button: painted like the column header row.  -->
+                    <Style TargetType="{x:Type Button}"
+                           x:Key="{ComponentResourceKey TypeInTargetAssembly={x:Type DataGrid}, ResourceId=DataGridSelectAllButtonStyle}">
+                        <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}" />
+                        <Setter Property="BorderThickness" Value="0,0,1,1" />
+                        <Setter Property="Cursor" Value="Arrow" />
+                        <Setter Property="Focusable" Value="False" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            SnapsToDevicePixels="True" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </DataGrid.Resources>
+            </DataGrid>
         </DockPanel>
     </Border>
 </UserControl>

@@ -15,6 +15,45 @@ namespace SsmsResultsGrid.ToolWindows
 {
     public partial class FilterableGridControl : UserControl
     {
+        public static readonly DependencyProperty CurrentFilterTextProperty =
+            DependencyProperty.Register(
+                nameof(CurrentFilterText),
+                typeof(string),
+                typeof(FilterableGridControl),
+                new PropertyMetadata(string.Empty));
+
+        public static readonly DependencyProperty FilterMatchModeProperty =
+            DependencyProperty.Register(
+                nameof(FilterMatchMode),
+                typeof(int),
+                typeof(FilterableGridControl),
+                new PropertyMetadata(0));
+
+        public static readonly DependencyProperty FilterCaseSensitiveProperty =
+            DependencyProperty.Register(
+                nameof(FilterCaseSensitive),
+                typeof(bool),
+                typeof(FilterableGridControl),
+                new PropertyMetadata(false));
+
+        public string CurrentFilterText
+        {
+            get => (string)GetValue(CurrentFilterTextProperty);
+            set => SetValue(CurrentFilterTextProperty, value);
+        }
+
+        public int FilterMatchMode
+        {
+            get => (int)GetValue(FilterMatchModeProperty);
+            set => SetValue(FilterMatchModeProperty, value);
+        }
+
+        public bool FilterCaseSensitive
+        {
+            get => (bool)GetValue(FilterCaseSensitiveProperty);
+            set => SetValue(FilterCaseSensitiveProperty, value);
+        }
+
         private DataView _view;
         private DispatcherTimer _debounce;
         private string _lastDiagnostics;
@@ -54,14 +93,53 @@ namespace SsmsResultsGrid.ToolWindows
                 return;
             }
 
-            _view = table.DefaultView;
-            _defaultCaseSensitive = table.CaseSensitive;
-            ResultsGrid.ItemsSource = _view;
+            // Preserve user-adjusted column widths by reusing the existing DataTable
+            // when the schema matches. Reassigning ItemsSource regenerates columns and
+            // wipes out any manual resizing, which was happening on every auto-refresh
+            // triggered by QueryExecutionListener.
+            if (_view != null && TablesHaveSameSchema(_view.Table, table))
+            {
+                var destination = _view.Table;
+                destination.BeginLoadData();
+                try
+                {
+                    destination.Rows.Clear();
+                    foreach (DataRow row in table.Rows)
+                    {
+                        destination.ImportRow(row);
+                    }
+                    destination.CaseSensitive = table.CaseSensitive;
+                }
+                finally
+                {
+                    destination.EndLoadData();
+                }
+                _defaultCaseSensitive = table.CaseSensitive;
+            }
+            else
+            {
+                _view = table.DefaultView;
+                _defaultCaseSensitive = table.CaseSensitive;
+                ResultsGrid.ItemsSource = _view;
+            }
+
             UpdateStatus();
             UpdateSummary();
             ApplyFilter(FilterBox.Text);
             LastUpdatedText.Text = "Updated: " + DateTime.Now.ToString("HH:mm:ss");
             SetDiagnostics(null);
+        }
+
+        private static bool TablesHaveSameSchema(DataTable a, DataTable b)
+        {
+            if (a == null || b == null) return false;
+            if (a.Columns.Count != b.Columns.Count) return false;
+            for (int i = 0; i < a.Columns.Count; i++)
+            {
+                if (!string.Equals(a.Columns[i].ColumnName, b.Columns[i].ColumnName, StringComparison.Ordinal)) return false;
+                if (a.Columns[i].DataType != b.Columns[i].DataType) return false;
+            }
+            return true;
         }
 
         public void LoadCaptureResult(DataTable table, string failureReason)
@@ -143,6 +221,7 @@ namespace SsmsResultsGrid.ToolWindows
             ClearFilterButton.Visibility = string.IsNullOrEmpty(FilterBox.Text)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
+            CurrentFilterText = FilterBox.Text ?? string.Empty;
             FilterTextChanged?.Invoke(this, EventArgs.Empty);
 
             // Debounce so filtering stays responsive on large result sets.
@@ -240,11 +319,13 @@ namespace SsmsResultsGrid.ToolWindows
 
         private void MatchCaseCheckBox_Changed(object sender, RoutedEventArgs e)
         {
+            FilterCaseSensitive = MatchCaseCheckBox.IsChecked == true;
             ApplyFilter(FilterBox.Text);
         }
 
         private void FilterModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            FilterMatchMode = GetFilterMode();
             if (!IsLoaded) return;
             ApplyFilter(FilterBox.Text);
         }
@@ -252,6 +333,62 @@ namespace SsmsResultsGrid.ToolWindows
         private void ResultsGrid_LoadingRow(object sender, DataGridRowEventArgs e)
         {
             e.Row.Header = (e.Row.GetIndex() + 1).ToString("N0");
+        }
+
+        private void ResultsGrid_AutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)
+        {
+            // Swap the auto-generated text column for a template column that supports
+            // match highlighting while preserving sorting and clipboard behaviour.
+            if (!(e.Column is DataGridBoundColumn bound)) return;
+            if (!(bound.Binding is Binding boundBinding) || boundBinding.Path == null) return;
+
+            var header = e.Column.Header?.ToString() ?? e.PropertyName;
+            var sortPath = string.IsNullOrEmpty(e.PropertyName) ? boundBinding.Path.Path : e.PropertyName;
+
+            var factory = new FrameworkElementFactory(typeof(TextBlock));
+            factory.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+            factory.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+
+            factory.SetBinding(TextHighlight.SourceTextProperty, new Binding(boundBinding.Path.Path)
+            {
+                Mode = BindingMode.OneWay,
+                FallbackValue = string.Empty,
+                TargetNullValue = string.Empty
+            });
+            factory.SetBinding(TextHighlight.HighlightTextProperty, new Binding(nameof(CurrentFilterText))
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor)
+                {
+                    AncestorType = typeof(FilterableGridControl)
+                }
+            });
+            factory.SetBinding(TextHighlight.MatchModeProperty, new Binding(nameof(FilterMatchMode))
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor)
+                {
+                    AncestorType = typeof(FilterableGridControl)
+                }
+            });
+            factory.SetBinding(TextHighlight.CaseSensitiveProperty, new Binding(nameof(FilterCaseSensitive))
+            {
+                RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor)
+                {
+                    AncestorType = typeof(FilterableGridControl)
+                }
+            });
+
+            var template = new DataTemplate { VisualTree = factory };
+            template.Seal();
+
+            e.Column = new DataGridTemplateColumn
+            {
+                Header = header,
+                CellTemplate = template,
+                SortMemberPath = sortPath,
+                ClipboardContentBinding = boundBinding,
+                CanUserSort = true,
+                MinWidth = 60
+            };
         }
 
         private void CopySelectedButton_Click(object sender, RoutedEventArgs e)

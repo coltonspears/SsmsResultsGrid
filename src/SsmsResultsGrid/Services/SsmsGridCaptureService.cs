@@ -356,30 +356,47 @@ namespace SsmsResultsGrid.Services
 
             var getHeader = FindMethod(t, "GetHeaderInfo");
 
-            var table = new DataTable();
+            // SSMS's native grid exposes a leading row-number "gutter" column with no
+            // header. We already render our own row numbers via DataGrid.RowHeader,
+            // so drop any column whose header is null/empty rather than inventing
+            // a "Col N" placeholder that shows up empty in the results view.
+            var sourceColumns = new List<int>(colCount);
             for (int c = 0; c < colCount; c++)
             {
-                string header = ReadHeader(grid, getHeader, c) ?? $"Col {c + 1}";
+                var header = ReadHeader(grid, getHeader, c);
+                if (string.IsNullOrWhiteSpace(header)) continue;
+                sourceColumns.Add(c);
+            }
+
+            if (sourceColumns.Count == 0) return null;
+
+            var table = new DataTable();
+            var headers = new List<string>(sourceColumns.Count);
+            foreach (var sourceIndex in sourceColumns)
+            {
+                var header = ReadHeader(grid, getHeader, sourceIndex);
                 var unique = header;
                 int dedup = 2;
                 while (table.Columns.Contains(unique))
                     unique = header + " (" + dedup++ + ")";
                 table.Columns.Add(unique, typeof(string));
+                headers.Add(unique);
             }
 
             long cap = Math.Min(rowCount, MaxRowsToCapture);
             for (long r = 0; r < cap; r++)
             {
                 var row = table.NewRow();
-                for (int c = 0; c < colCount; c++)
+                for (int i = 0; i < sourceColumns.Count; i++)
                 {
+                    var sourceIndex = sourceColumns[i];
                     try
                     {
-                        row[c] = (string)getCell.Invoke(storage, new object[] { r, c }) ?? string.Empty;
+                        row[i] = (string)getCell.Invoke(storage, new object[] { r, sourceIndex }) ?? string.Empty;
                     }
                     catch
                     {
-                        row[c] = string.Empty;
+                        row[i] = string.Empty;
                     }
                 }
                 table.Rows.Add(row);
