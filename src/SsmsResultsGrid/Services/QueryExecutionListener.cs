@@ -21,7 +21,12 @@ namespace SsmsResultsGrid.Services
     /// </summary>
     internal sealed class QueryExecutionListener : IVsRunningDocTableEvents, IDisposable
     {
+        private const int PollIntervalMs = 150;
+        private const int MaxPollAttempts = 200; // ~30s at 150ms interval.
+        private static readonly TimeSpan DuplicateQuerySignalWindow = TimeSpan.FromMilliseconds(1200);
+
         private static readonly Guid SqlEditorCmdSet = new Guid("52692960-56BC-4989-B5D3-94C47B513AE0");
+        private static readonly Guid SsmsQueryCmdSet = new Guid("52692960-56BC-4989-B5D3-94C47A513E8D");
         private static readonly Guid VsStd97CmdSet = VSConstants.GUID_VSStandardCommandSet97;
         private const uint ExecuteCmdId = 0x0100;
         private static readonly HashSet<uint> AdditionalExecuteCommandIds = new HashSet<uint>
@@ -29,14 +34,26 @@ namespace SsmsResultsGrid.Services
             0x0101, // SSMS variants sometimes route "execute with options" through adjacent IDs.
             0x0102
         };
+        private static readonly HashSet<uint> ObservedSsmsQueryCommandIds = new HashSet<uint>
+        {
+            0x0001,
+            0x0004,
+            0x0005
+        };
 
         private readonly FilterableGridPackage _package;
         private IVsRunningDocumentTable _rdt;
         private uint _rdtCookie;
+        private IVsRegisterPriorityCommandTarget _commandTargetRegistrar;
+        private uint _commandTargetCookie;
+        private ExecuteCommandObserver _executeCommandObserver;
         private DispatcherTimer _pollTimer;
         private int _pollAttemptsLeft;
         private string _activeDocumentKey;
         private string _lastExecutionSource;
+        private bool _pollInProgress;
+        private DateTime _lastCaptureCompletedUtc = DateTime.MinValue;
+        private string _lastCapturedDocumentKey;
 
         public QueryExecutionListener(FilterableGridPackage package)
         {
@@ -50,8 +67,10 @@ namespace SsmsResultsGrid.Services
             // Hook the command dispatcher so we can observe the T-SQL Execute command.
             if (await _package.GetServiceAsync(typeof(SVsRegisterPriorityCommandTarget)) is IVsRegisterPriorityCommandTarget reg)
             {
-                reg.RegisterPriorityCommandTarget(0, new ExecuteCommandObserver(this), out _);
-                DebugOutput.Write("Registered priority command target for query execution.");
+                _commandTargetRegistrar = reg;
+                _executeCommandObserver = new ExecuteCommandObserver(this);
+                reg.RegisterPriorityCommandTarget(0, _executeCommandObserver, out _commandTargetCookie);
+                DebugOutput.Write($"Registered priority command target for query execution. cookie={_commandTargetCookie}");
             }
             else
             {
@@ -71,6 +90,19 @@ namespace SsmsResultsGrid.Services
         {
             _pollTimer?.Stop();
             _pollTimer = null;
+            if (_commandTargetRegistrar != null && _commandTargetCookie != 0)
+            {
+                try
+                {
+                    _commandTargetRegistrar.UnregisterPriorityCommandTarget(_commandTargetCookie);
+                }
+                catch (Exception ex)
+                {
+                    DebugOutput.Write("UnregisterPriorityCommandTarget failed: " + ex.Message);
+                }
+                _commandTargetCookie = 0;
+            }
+            _executeCommandObserver = null;
             if (_rdt != null && _rdtCookie != 0)
             {
                 _rdt.UnadviseRunningDocTableEvents(_rdtCookie);
@@ -83,16 +115,34 @@ namespace SsmsResultsGrid.Services
             ThreadHelper.ThrowIfNotOnUIThread();
 
             // SSMS renders results asynchronously after the Execute command returns.
-            // Poll every 500ms for up to 30s so streaming queries still populate.
+            // Poll quickly and coalesce repeated command bursts from one query execution.
             _lastExecutionSource = source;
             _activeDocumentKey = GetActiveDocumentKey();
-            _pollAttemptsLeft = 60;
+            var now = DateTime.UtcNow;
+            if (!_pollInProgress &&
+                string.Equals(_activeDocumentKey, _lastCapturedDocumentKey, StringComparison.OrdinalIgnoreCase) &&
+                now - _lastCaptureCompletedUtc <= DuplicateQuerySignalWindow)
+            {
+                DebugOutput.Write($"Skipping duplicate query trigger: source={source}, document={_activeDocumentKey ?? "<unknown>"}.");
+                return;
+            }
+
+            if (_pollInProgress)
+            {
+                // Keep the existing poll loop hot; do not restart timer on every SSMS command burst.
+                _pollAttemptsLeft = Math.Max(_pollAttemptsLeft, MaxPollAttempts / 2);
+                DebugOutput.Write($"Query trigger coalesced into active poll: source={source}, document={_activeDocumentKey ?? "<unknown>"}, attemptsLeft={_pollAttemptsLeft}.");
+                return;
+            }
+
+            _pollAttemptsLeft = MaxPollAttempts;
             DebugOutput.Write($"Query execution observed: source={source}, document={_activeDocumentKey ?? "<unknown>"}.");
             if (_pollTimer == null)
             {
-                _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+                _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PollIntervalMs) };
                 _pollTimer.Tick += PollForResults;
             }
+            _pollInProgress = true;
             _pollTimer.Stop();
             _pollTimer.Start();
         }
@@ -112,6 +162,9 @@ namespace SsmsResultsGrid.Services
             if (table != null && table.Rows.Count > 0)
             {
                 _pollTimer.Stop();
+                _pollInProgress = false;
+                _lastCaptureCompletedUtc = DateTime.UtcNow;
+                _lastCapturedDocumentKey = _activeDocumentKey;
                 DebugOutput.Write("Capture succeeded; pushing result table to filterable surface.");
                 PushToSurface(table, null, _activeDocumentKey, activateInlineTab: true);
                 return;
@@ -120,9 +173,12 @@ namespace SsmsResultsGrid.Services
             if (_pollAttemptsLeft <= 0)
             {
                 _pollTimer.Stop();
+                _pollInProgress = false;
                 // If we captured an empty grid, still push it so column headers show.
                 if (table != null)
                 {
+                    _lastCaptureCompletedUtc = DateTime.UtcNow;
+                    _lastCapturedDocumentKey = _activeDocumentKey;
                     DebugOutput.Write("Capture timed out with empty table; pushing headers/empty result to filterable surface.");
                     PushToSurface(table, null, _activeDocumentKey, activateInlineTab: true);
                 }
@@ -219,6 +275,7 @@ namespace SsmsResultsGrid.Services
         private sealed class ExecuteCommandObserver : Microsoft.VisualStudio.OLE.Interop.IOleCommandTarget
         {
             private readonly QueryExecutionListener _owner;
+            private int _unmatchedLogCount;
 
             public ExecuteCommandObserver(QueryExecutionListener owner) { _owner = owner; }
 
@@ -235,10 +292,20 @@ namespace SsmsResultsGrid.Services
                     DebugOutput.Write($"Exec observed for SQL command: {nCmdID:X4}.");
                     try { _owner.OnQueryExecuted($"sql-cmd:{nCmdID:X4}"); } catch (Exception ex) { DebugOutput.Write("OnQueryExecuted failed: " + ex); }
                 }
+                else if (pguidCmdGroup == SsmsQueryCmdSet && ObservedSsmsQueryCommandIds.Contains(nCmdID))
+                {
+                    DebugOutput.Write($"Exec observed for SSMS query command: {nCmdID:X4}.");
+                    try { _owner.OnQueryExecuted($"ssms-query-cmd:{nCmdID:X4}"); } catch (Exception ex) { DebugOutput.Write("OnQueryExecuted failed: " + ex); }
+                }
                 else if (pguidCmdGroup == VsStd97CmdSet && nCmdID == (uint)VSConstants.VSStd97CmdID.Start)
                 {
                     DebugOutput.Write("Exec observed for VS Start command.");
                     try { _owner.OnQueryExecuted("vsstd97-start"); } catch (Exception ex) { DebugOutput.Write("OnQueryExecuted failed: " + ex); }
+                }
+                else if (_unmatchedLogCount < 40)
+                {
+                    _unmatchedLogCount++;
+                    DebugOutput.Write($"Exec observed but not matched: group={pguidCmdGroup}, id=0x{nCmdID:X4}, count={_unmatchedLogCount}.");
                 }
                 return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
             }

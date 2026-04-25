@@ -16,7 +16,7 @@ namespace SsmsResultsGrid.Services
     internal sealed class InlineFilterTabService
     {
         private const string FilterTabName = "__SsmsResultsGrid_FilterTab";
-        private const string FilterTabTitle = "Filter";
+        private const string FilterTabTitle = "Results View";
         private const string InlineHostName = "__SsmsResultsGrid_FilterHost";
         private string _lastFilterText = string.Empty;
 
@@ -32,7 +32,7 @@ namespace SsmsResultsGrid.Services
                 return false;
             }
 
-            if (!TryFindTabHost(sourceGrid, out var tabControl, out _, out reason))
+            if (!TryFindTabHost(sourceGrid, out var tabControl, out var currentPage, out reason))
             {
                 DebugOutput.Write("Inline update skipped: " + reason);
                 return false;
@@ -48,8 +48,15 @@ namespace SsmsResultsGrid.Services
                     Padding = Padding.Empty,
                     AutoScroll = false
                 };
-                tabControl.TabPages.Add(filterPage);
-                DebugOutput.Write("Created inline Filter tab.");
+                CopyTabIcon(currentPage, filterPage);
+                tabControl.TabPages.Insert(0, filterPage);
+                DebugOutput.Write("Created inline Results View tab at index 0.");
+            }
+            else
+            {
+                filterPage.Text = FilterTabTitle;
+                CopyTabIcon(currentPage, filterPage);
+                MoveTabToFirstPosition(tabControl, filterPage);
             }
 
             var control = GetOrCreateFilterControl(filterPage.Controls);
@@ -66,12 +73,43 @@ namespace SsmsResultsGrid.Services
             if (activateTab)
             {
                 tabControl.SelectedTab = filterPage;
-                DebugOutput.Write("Activated inline Filter tab.");
+                DebugOutput.Write("Activated inline Results View tab.");
             }
 
             reason = "ok-inline-tab";
-            DebugOutput.Write($"Inline Filter tab updated: rows={(table == null ? "null" : table.Rows.Count.ToString())}, cols={(table == null ? "null" : table.Columns.Count.ToString())}.");
+            DebugOutput.Write($"Inline Results View tab updated: rows={(table == null ? "null" : table.Rows.Count.ToString())}, cols={(table == null ? "null" : table.Columns.Count.ToString())}.");
             return true;
+        }
+
+        private static void MoveTabToFirstPosition(TabControl tabControl, TabPage filterPage)
+        {
+            if (tabControl == null || filterPage == null)
+            {
+                return;
+            }
+
+            var currentIndex = tabControl.TabPages.IndexOf(filterPage);
+            if (currentIndex <= 0)
+            {
+                return;
+            }
+
+            var selected = tabControl.SelectedTab;
+            tabControl.TabPages.Remove(filterPage);
+            tabControl.TabPages.Insert(0, filterPage);
+            tabControl.SelectedTab = selected == filterPage ? filterPage : selected;
+            DebugOutput.Write("Moved inline Results View tab to index 0.");
+        }
+
+        private static void CopyTabIcon(TabPage sourcePage, TabPage targetPage)
+        {
+            if (sourcePage == null || targetPage == null)
+            {
+                return;
+            }
+
+            targetPage.ImageKey = sourcePage.ImageKey;
+            targetPage.ImageIndex = sourcePage.ImageIndex;
         }
 
         private void TrackFilterText(FilterableGridControl control)

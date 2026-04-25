@@ -52,7 +52,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Border Margin="6"
+    <Border Margin="0"
             BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
             BorderThickness="1"
             Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}">
@@ -64,13 +64,16 @@
                     Padding="8,7">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" MinWidth="120" />
+                        <ColumnDefinition Width="*" MinWidth="220" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock FontWeight="SemiBold" Text="Filterable Results" />
+                        <TextBlock FontWeight="SemiBold" Text="Results View" />
                         <TextBlock x:Name="StatusText"
                                    Margin="0,1,0,0"
                                    FontSize="11"
@@ -84,7 +87,40 @@
                             Click="RefreshButton_Click"
                             ToolTip="Re-capture the current SSMS results grid">Refresh</Button>
 
-                    <Grid Grid.Column="2"
+                    <Button x:Name="CopySelectedButton"
+                            Grid.Column="2"
+                            Margin="0,0,8,0"
+                            Click="CopySelectedButton_Click"
+                            ToolTip="Copy selected cells/rows including headers">Copy Selected</Button>
+
+                    <Button x:Name="ExportCsvButton"
+                            Grid.Column="3"
+                            Margin="0,0,8,0"
+                            Click="ExportCsvButton_Click"
+                            ToolTip="Export currently visible rows to CSV">Export CSV</Button>
+
+                    <ComboBox x:Name="FilterModeBox"
+                              Grid.Column="4"
+                              Width="108"
+                              Margin="0,0,8,0"
+                              SelectedIndex="0"
+                              SelectionChanged="FilterModeBox_SelectionChanged"
+                              ToolTip="Filter mode">
+                        <ComboBoxItem Content="Contains" />
+                        <ComboBoxItem Content="Starts With" />
+                        <ComboBoxItem Content="Exact Match" />
+                    </ComboBox>
+
+                    <CheckBox x:Name="MatchCaseCheckBox"
+                              Grid.Column="5"
+                              Margin="0,0,8,0"
+                              VerticalAlignment="Center"
+                              Checked="MatchCaseCheckBox_Changed"
+                              Unchecked="MatchCaseCheckBox_Changed"
+                              ToolTip="Case-sensitive filtering"
+                              Content="Match case" />
+
+                    <Grid Grid.Column="6"
                           Width="260"
                           VerticalAlignment="Center">
                         <TextBox x:Name="FilterBox"
@@ -125,6 +161,7 @@
             <DataGrid x:Name="ResultsGrid"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"
+                      LoadingRow="ResultsGrid_LoadingRow"
                       AutoGenerateColumns="True"
                       CanUserAddRows="False"
                       CanUserDeleteRows="False"
@@ -138,7 +175,7 @@
                       Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
                       BorderThickness="0"
-                      RowHeaderWidth="0"
+                      RowHeaderWidth="52"
                       EnableRowVirtualization="True"
                       EnableColumnVirtualization="True"
                       VirtualizingPanel.IsVirtualizing="True"
@@ -146,9 +183,42 @@
                       SelectionUnit="CellOrRowHeader"
                       ClipboardCopyMode="IncludeHeader" />
 
+            <Border DockPanel.Dock="Bottom"
+                    Margin="0"
+                    Padding="8,5"
+                    BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
+                    BorderThickness="0,1,0,0"
+                    Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="SummaryText"
+                               Grid.Column="0"
+                               VerticalAlignment="Center"
+                               Opacity="0.75"
+                               Text="Rows: 0 | Columns: 0" />
+                    <TextBlock x:Name="FilterLatencyText"
+                               Grid.Column="1"
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               Opacity="0.75"
+                               Text="Filter: ready" />
+                    <TextBlock x:Name="LastUpdatedText"
+                               Grid.Column="2"
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               Opacity="0.75"
+                               Text="Updated: --" />
+                </Grid>
+            </Border>
+
             <Border x:Name="DiagnosticsBorder"
                     DockPanel.Dock="Bottom"
-                    Margin="8"
+                    Margin="8,0,8,8"
                     Padding="8"
                     BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"
                     BorderThickness="1"
