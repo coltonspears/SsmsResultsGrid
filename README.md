@@ -6,6 +6,10 @@ mirrors the result set into a WPF `DataGrid` tab (next to Results/Messages
 when host discovery succeeds) with a live filter box in the top right that
 substring-matches across every column.
 
+
+![Filterable Results Grid](image.png)
+
+
 ## What this does (and does not) do
 
 SSMS's built-in results grid (`Microsoft.SqlServer.Management.UI.Grid.GridControl`)
@@ -17,9 +21,9 @@ layout internals differ), and:
 
 - Auto-refreshes after each `Query.Execute` command.
 - Reads the current active grid's contents via reflection against
-  `GridControl.GridStorage` / `GetCellDataAsString`.
+`GridControl.GridStorage` / `GetCellDataAsString`.
 - Provides a top-right filter box with debounced live search and a row
-  counter (`42 of 1,337 rows`).
+counter (`42 of 1,337 rows`).
 
 If Microsoft changes `GridControl`'s internal shape in a future SSMS build,
 the reflection path will degrade gracefully: capture returns `null` and the
@@ -28,11 +32,11 @@ tool window stays empty rather than crashing.
 ## Prerequisites
 
 - **Visual Studio 2022** (17.8 or newer) with the
-  *Visual Studio extension development* workload.
+*Visual Studio extension development* workload.
 - **.NET Framework 4.7.2** developer pack.
 - **SQL Server Management Studio 22** (for testing the installed VSIX).
-  SSMS 22 hosts the Visual Studio 2022 shell natively, so any VSIX built
-  against the 17.x `Microsoft.VisualStudio.SDK` loads in it directly.
+SSMS 22 hosts the Visual Studio 2022 shell natively, so any VSIX built
+against the 17.x `Microsoft.VisualStudio.SDK` loads in it directly.
 
 ## Build
 
@@ -61,7 +65,7 @@ is not offered in the installer, drop the file here and restart SSMS:
 
 1. Open a query window and execute any `SELECT` in SSMS.
 2. A **Filter** tab appears in the query's result area (or you can open it
-   manually via *Tools → Show Filterable Results Grid*).
+  manually via *Tools → Show Filterable Results Grid*).
 3. Type in the filter box in the top right — the grid narrows in real time.
 4. Hit **Refresh** to re-capture the current result set on demand.
 
@@ -88,16 +92,16 @@ src/SsmsResultsGrid/
 ## Known limitations
 
 - **Multiple result sets**: only the active/topmost grid is captured.
-  Re-click the result tab you want, then click **Refresh**.
+Re-click the result tab you want, then click **Refresh**.
 - **BLOB / image columns**: captured as their string representation (per
-  SSMS's own `GetCellDataAsString`).
+SSMS's own `GetCellDataAsString`).
 - **Huge result sets**: capture is capped at 100,000 rows to keep the WPF
-  virtualization path responsive. Adjust `MaxRowsToCapture` in
-  `SsmsGridCaptureService` if you need more.
+virtualization path responsive. Adjust `MaxRowsToCapture` in
+`SsmsGridCaptureService` if you need more.
 - **Results-to-text / Results-to-file modes**: there is no grid to capture;
-  the tool window stays empty.
+the tool window stays empty.
 - **SSMS 20 and earlier** used the VS Isolated Shell and a different VSIX
-  target schema. This project targets SSMS 22 only.
+target schema. This project targets SSMS 22 only.
 
 ## License
 
