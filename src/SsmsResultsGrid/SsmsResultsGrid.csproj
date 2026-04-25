@@ -75,6 +75,7 @@
     <Compile Include="Commands\ShowFilterableGridCommand.cs" />
     <Compile Include="Services\QueryExecutionListener.cs" />
     <Compile Include="Services\SsmsGridCaptureService.cs" />
+    <Compile Include="Services\DebugOutput.cs" />
     <Compile Include="Services\InlineReplacementProbe.cs" />
     <Compile Include="Services\InlineFilterTabService.cs" />
     <Compile Include="ToolWindows\FilterableGridControl.xaml.cs">

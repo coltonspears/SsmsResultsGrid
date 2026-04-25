@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.Design;
 using Microsoft.VisualStudio.Shell;
+using SsmsResultsGrid.Services;
 using Task = System.Threading.Tasks.Task;
 
 namespace SsmsResultsGrid.Commands
@@ -33,15 +34,19 @@ namespace SsmsResultsGrid.Commands
                 // Trigger an on-demand capture so the user sees current data immediately.
                 if (FilterableGridPackage.Instance?.CaptureService != null)
                 {
+                    DebugOutput.Write("Manual filterable grid command invoked.");
                     var table = FilterableGridPackage.Instance.CaptureService.TryCaptureActiveDetailed(out _);
                     var failure = table == null ? FilterableGridPackage.Instance.CaptureService.LastFailureReason : null;
 
                     var sourceGrid = FilterableGridPackage.Instance.CaptureService.LastCapturedGridControl;
                     if (FilterableGridPackage.Instance.InlineTabService != null &&
-                        FilterableGridPackage.Instance.InlineTabService.TryShowOrUpdate(sourceGrid, table, failure, activateTab: true, out _))
+                        FilterableGridPackage.Instance.InlineTabService.TryShowOrUpdate(sourceGrid, table, failure, activateTab: true, out var reason))
                     {
+                        DebugOutput.Write("Manual command pushed capture inline: " + reason);
                         return;
                     }
+
+                    DebugOutput.Write("Manual command could not show inline filterable grid.");
                 }
             });
         }

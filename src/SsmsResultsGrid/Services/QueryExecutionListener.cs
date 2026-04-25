@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using SsmsResultsGrid.ToolWindows;
 using Task = System.Threading.Tasks.Task;
 
 namespace SsmsResultsGrid.Services
@@ -50,12 +51,18 @@ namespace SsmsResultsGrid.Services
             if (await _package.GetServiceAsync(typeof(SVsRegisterPriorityCommandTarget)) is IVsRegisterPriorityCommandTarget reg)
             {
                 reg.RegisterPriorityCommandTarget(0, new ExecuteCommandObserver(this), out _);
+                DebugOutput.Write("Registered priority command target for query execution.");
+            }
+            else
+            {
+                DebugOutput.Write("Could not acquire SVsRegisterPriorityCommandTarget; auto-refresh will not observe Execute commands.");
             }
 
             // RDT events are a cheap way to know when new docs open; we don't strictly
             // need them, but they let us wire up future per-document state if needed.
             _rdt = await _package.GetServiceAsync(typeof(SVsRunningDocumentTable)) as IVsRunningDocumentTable;
             _rdt?.AdviseRunningDocTableEvents(this, out _rdtCookie);
+            DebugOutput.Write("QueryExecutionListener started.");
         }
 
         public void Stop() => Dispose();
@@ -80,6 +87,7 @@ namespace SsmsResultsGrid.Services
             _lastExecutionSource = source;
             _activeDocumentKey = GetActiveDocumentKey();
             _pollAttemptsLeft = 60;
+            DebugOutput.Write($"Query execution observed: source={source}, document={_activeDocumentKey ?? "<unknown>"}.");
             if (_pollTimer == null)
             {
                 _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
@@ -95,11 +103,17 @@ namespace SsmsResultsGrid.Services
 
             _pollAttemptsLeft--;
             var table = _package.CaptureService.TryCaptureActiveDetailed(out var diagnostics);
+            var attempt = 60 - _pollAttemptsLeft;
+            if (attempt == 1 || attempt % 10 == 0 || table != null)
+            {
+                DebugOutput.Write($"Capture poll {attempt}: table={(table == null ? "null" : $"{table.Rows.Count} rows/{table.Columns.Count} cols")}, candidates={diagnostics?.CandidateCount ?? 0}, visible={diagnostics?.VisibleCandidateCount ?? 0}.");
+            }
 
             if (table != null && table.Rows.Count > 0)
             {
                 _pollTimer.Stop();
-                PushToSurface(table, null, _activeDocumentKey, activateInlineTab: false);
+                DebugOutput.Write("Capture succeeded; pushing result table to filterable surface.");
+                PushToSurface(table, null, _activeDocumentKey, activateInlineTab: true);
                 return;
             }
 
@@ -109,7 +123,8 @@ namespace SsmsResultsGrid.Services
                 // If we captured an empty grid, still push it so column headers show.
                 if (table != null)
                 {
-                    PushToSurface(table, null, _activeDocumentKey, activateInlineTab: false);
+                    DebugOutput.Write("Capture timed out with empty table; pushing headers/empty result to filterable surface.");
+                    PushToSurface(table, null, _activeDocumentKey, activateInlineTab: true);
                 }
                 else
                 {
@@ -122,7 +137,8 @@ namespace SsmsResultsGrid.Services
                     {
                         details += $" [poll-timeout after 60 attempts; candidates={diagnostics.CandidateCount}]";
                     }
-                    PushToSurface(null, details, _activeDocumentKey, activateInlineTab: false);
+                    DebugOutput.Write("Capture timed out without table: " + details);
+                    PushToSurface(null, details, _activeDocumentKey, activateInlineTab: true);
                 }
             }
         }
@@ -133,7 +149,20 @@ namespace SsmsResultsGrid.Services
             {
                 await _package.JoinableTaskFactory.SwitchToMainThreadAsync();
                 var sourceGrid = _package.CaptureService.LastCapturedGridControl;
-                _package.InlineTabService?.TryShowOrUpdate(sourceGrid, table, failureReason, activateInlineTab, out _);
+                if (_package.InlineTabService != null &&
+                    _package.InlineTabService.TryShowOrUpdate(sourceGrid, table, failureReason, activateInlineTab, out var inlineReason))
+                {
+                    DebugOutput.Write("Pushed capture to inline surface: " + inlineReason);
+                    return;
+                }
+
+                DebugOutput.Write("Inline surface unavailable; falling back to tool window.");
+                var window = await _package.ShowToolWindowAsync(
+                    typeof(FilterableGridToolWindow),
+                    0,
+                    create: true,
+                    cancellationToken: _package.DisposalToken) as FilterableGridToolWindow;
+                window?.LoadCaptureResult(table, failureReason, documentKey);
             });
         }
 
@@ -203,11 +232,13 @@ namespace SsmsResultsGrid.Services
                 if (pguidCmdGroup == SqlEditorCmdSet &&
                     (nCmdID == ExecuteCmdId || AdditionalExecuteCommandIds.Contains(nCmdID)))
                 {
-                    try { _owner.OnQueryExecuted($"sql-cmd:{nCmdID:X4}"); } catch { }
+                    DebugOutput.Write($"Exec observed for SQL command: {nCmdID:X4}.");
+                    try { _owner.OnQueryExecuted($"sql-cmd:{nCmdID:X4}"); } catch (Exception ex) { DebugOutput.Write("OnQueryExecuted failed: " + ex); }
                 }
                 else if (pguidCmdGroup == VsStd97CmdSet && nCmdID == (uint)VSConstants.VSStd97CmdID.Start)
                 {
-                    try { _owner.OnQueryExecuted("vsstd97-start"); } catch { }
+                    DebugOutput.Write("Exec observed for VS Start command.");
+                    try { _owner.OnQueryExecuted("vsstd97-start"); } catch (Exception ex) { DebugOutput.Write("OnQueryExecuted failed: " + ex); }
                 }
                 return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
             }

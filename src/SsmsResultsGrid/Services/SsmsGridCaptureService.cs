@@ -57,12 +57,14 @@ namespace SsmsResultsGrid.Services
                 var candidates = FindGridCandidatesViaWin32(diagnostics);
                 diagnostics.CandidateCount = candidates.Count;
                 diagnostics.VisibleCandidateCount = candidates.Count(c => c.IsVisible);
+                DebugOutput.Write($"Grid capture discovery: candidates={diagnostics.CandidateCount}, visible={diagnostics.VisibleCandidateCount}, roots={diagnostics.RootWindowCount}, handles={diagnostics.EnumeratedHandleCount}, managed={diagnostics.ManagedHandleCount}.");
 
                 var grid = SelectBestGridCandidate(candidates, diagnostics);
                 if (grid == null)
                 {
                     LastFailureReason = BuildFailureReason(diagnostics, "grid-not-found",
                         "No SSMS GridControl found in any open document. Ensure a query has run in Results-to-Grid mode.");
+                    DebugOutput.Write("Grid capture failed: " + LastFailureReason);
                     return null;
                 }
 
@@ -72,6 +74,11 @@ namespace SsmsResultsGrid.Services
                 {
                     LastFailureReason = BuildFailureReason(diagnostics, "extract-failed",
                         "Found the grid but could not read its data (SSMS internals may have changed).");
+                    DebugOutput.Write("Grid extraction failed: " + LastFailureReason);
+                }
+                else
+                {
+                    DebugOutput.Write($"Grid extraction succeeded: rows={table.Rows.Count}, cols={table.Columns.Count}, selected={diagnostics.SelectedCandidate}.");
                 }
                 return table;
             }
@@ -79,6 +86,7 @@ namespace SsmsResultsGrid.Services
             {
                 LastFailureReason = BuildFailureReason(diagnostics, "capture-threw",
                     "Capture threw: " + ex.GetType().Name + " - " + ex.Message);
+                DebugOutput.Write("Grid capture threw: " + ex);
                 return null;
             }
         }
