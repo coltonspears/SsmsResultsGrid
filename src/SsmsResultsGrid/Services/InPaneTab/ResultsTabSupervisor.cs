@@ -16,6 +16,7 @@ using SsmsResultsGrid.Services.Execution;
 using SsmsResultsGrid.Services.Settings;
 using SsmsResultsGrid.Views;
 using Task = System.Threading.Tasks.Task;
+using TaskScheduler = System.Threading.Tasks.TaskScheduler;
 
 namespace SsmsResultsGrid.Services.InPaneTab
 {

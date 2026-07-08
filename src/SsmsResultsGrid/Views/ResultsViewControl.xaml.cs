@@ -9,6 +9,7 @@ using System.Windows.Input;
 using Microsoft.Win32;
 using SsmsResultsGrid.Core.Models;
 using SsmsResultsGrid.Core.ViewModels;
+using UiStrings = SsmsResultsGrid.Resources.Strings;
 
 namespace SsmsResultsGrid.Views
 {
@@ -223,8 +224,8 @@ namespace SsmsResultsGrid.Views
 
             var dialog = new SaveFileDialog
             {
-                Filter = Resources.Strings.CsvDialogFilter,
-                FileName = Resources.Strings.CsvDefaultFileName,
+                Filter = UiStrings.CsvDialogFilter,
+                FileName = UiStrings.CsvDefaultFileName,
                 AddExtension = true,
                 OverwritePrompt = true
             };
@@ -240,7 +241,7 @@ namespace SsmsResultsGrid.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, Resources.Strings.ViewTitle, MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(ex.Message, UiStrings.ViewTitle, MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
