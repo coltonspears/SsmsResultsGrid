@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
+using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using SsmsResultsGrid.Core.Models;
@@ -16,6 +17,7 @@ using SsmsResultsGrid.Services.Execution;
 using SsmsResultsGrid.Services.Settings;
 using SsmsResultsGrid.Views;
 using Task = System.Threading.Tasks.Task;
+using TaskScheduler = System.Threading.Tasks.TaskScheduler;
 
 namespace SsmsResultsGrid.Services.InPaneTab
 {
@@ -31,9 +33,10 @@ namespace SsmsResultsGrid.Services.InPaneTab
     internal sealed class ResultsTabSupervisor
     {
         private const string TabPageName = "__SsmsResultsGrid_ResultsView";
+        private const string TabImageKey = "__SsmsResultsGrid_TabIcon";
 
         /// <summary>Trailing debounce for bursts of completion events from one execution.</summary>
-        private static readonly TimeSpan CompletionCoalesceDelay = TimeSpan.FromMilliseconds(300);
+        private static readonly TimeSpan CompletionCoalesceDelay = TimeSpan.FromMilliseconds(150);
 
         // Heuristic completion-event name patterns (StatisticsParserExtension-proven).
         private static readonly string[] EventNamePatterns =
@@ -85,11 +88,50 @@ namespace SsmsResultsGrid.Services.InPaneTab
             ThreadHelper.ThrowIfNotOnUIThread();
             CancelInFlightCapture();
 
+            // SSMS rebuilds the Results/Messages strip shortly after execution starts.
+            // Inject our (empty or previous-data) tab as soon as the strip exists so the
+            // user sees Results View immediately instead of after the query completes.
+            StartEarlyTabInjection();
+
             if (_hookedEventCount == 0)
             {
                 // Event-name heuristic found nothing on this SSMS build: fall back to a
                 // bounded, off-UI-thread poll of the brokered pane list.
                 StartPaneAvailabilityFallback();
+            }
+        }
+
+        private void StartEarlyTabInjection()
+        {
+            _ = _package.JoinableTaskFactory.RunAsync(async () =>
+            {
+                try
+                {
+                    for (int attempt = 0; attempt < 10; attempt++)
+                    {
+                        await Task.Delay(250, _package.DisposalToken).ConfigureAwait(false);
+                        await _package.JoinableTaskFactory.SwitchToMainThreadAsync(_package.DisposalToken);
+
+                        if (_tabPage != null && !_tabPage.IsDisposed) return; // already there
+                        if (TryEnsureTabQuiet()) return;
+                    }
+                }
+                catch (OperationCanceledException) { }
+            });
+        }
+
+        /// <summary>Non-activating, non-falling-back tab injection used during query execution.</summary>
+        private bool TryEnsureTabQuiet()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            try
+            {
+                EnsureTabCore(activate: false);
+                return true;
+            }
+            catch
+            {
+                return false; // strip not rebuilt yet — retry
             }
         }
 
@@ -282,6 +324,8 @@ namespace SsmsResultsGrid.Services.InPaneTab
 
                 await TaskScheduler.Default;
                 bool hasGridResults = await client.IsGridResultsPaneAvailableAsync(ct);
+
+                await _package.JoinableTaskFactory.SwitchToMainThreadAsync(ct);
                 if (!hasGridResults)
                 {
                     _dispatcher.Post(() =>
@@ -292,10 +336,16 @@ namespace SsmsResultsGrid.Services.InPaneTab
                     return;
                 }
 
+                // Show (and optionally activate) the tab before any rows arrive so the
+                // view — with its progress strip — is visible during the read.
+                EnsureTabAndBind(activateTab);
+                await TaskScheduler.Default;
+
                 bool tabEnsured = false;
                 long loadedRows = 0;
                 var progress = new DelegateProgress<CapturedBatch>(batch => _dispatcher.Post(() =>
                 {
+                    ThreadHelper.ThrowIfNotOnUIThread(); // WpfUiDispatcher posts to the main thread
                     if (ct.IsCancellationRequested) return;
 
                     if (batch.ColumnNames != null)
@@ -429,33 +479,109 @@ namespace SsmsResultsGrid.Services.InPaneTab
             ThreadHelper.ThrowIfNotOnUIThread();
             try
             {
-                var tabControl = TabPageHostResolver.Resolve(_docView);
-
-                bool missing = _tabPage == null || _tabPage.IsDisposed || !tabControl.TabPages.Contains(_tabPage);
-                if (missing)
-                {
-                    if (_tabPage != null && !_tabPage.IsDisposed)
-                    {
-                        _tabPage.Dispose();
-                    }
-
-                    _view = new ResultsViewControl { DataContext = _viewModel };
-                    var host = new ElementHost { Dock = DockStyle.Fill, Child = _view };
-                    _tabPage = new TabPage(Resources.Strings.TabTitle) { Name = TabPageName };
-                    _tabPage.Controls.Add(host);
-                    tabControl.TabPages.Insert(0, _tabPage);
-                }
-
-                if (activate)
-                {
-                    tabControl.SelectedTab = _tabPage;
-                }
+                EnsureTabCore(activate);
             }
             catch (Exception ex)
             {
                 _pane?.WriteFailure(nameof(EnsureTabAndBind), ex);
                 FallBackToToolWindow();
             }
+        }
+
+        private void EnsureTabCore(bool activate)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            var tabControl = TabPageHostResolver.Resolve(_docView);
+
+            bool missing = _tabPage == null || _tabPage.IsDisposed || !tabControl.TabPages.Contains(_tabPage);
+            if (missing)
+            {
+                if (_tabPage != null && !_tabPage.IsDisposed)
+                {
+                    _tabPage.Dispose();
+                }
+
+                // Pre-paint the WinForms side with the shell theme's background so the
+                // brief window before WPF's first render doesn't flash white.
+                var themeBackground = VSColorTheme.GetThemedColor(EnvironmentColors.ToolWindowBackgroundColorKey);
+
+                _view = new ResultsViewControl { DataContext = _viewModel };
+                _view.ApplySettings(_settings);
+                var host = new ElementHost
+                {
+                    Dock = DockStyle.Fill,
+                    BackColor = themeBackground,
+                    Child = _view,
+                };
+                _tabPage = new TabPage(Resources.Strings.TabTitle)
+                {
+                    Name = TabPageName,
+                    BackColor = themeBackground,
+                };
+                _tabPage.Controls.Add(host);
+                tabControl.TabPages.Insert(0, _tabPage);
+                ApplyTabIcon(tabControl);
+            }
+
+            if (activate)
+            {
+                tabControl.SelectedTab = _tabPage;
+            }
+        }
+
+        /// <summary>Funnel glyph next to the tab title, drawn in the theme's text color.</summary>
+        private void ApplyTabIcon(TabControl tabControl)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            try
+            {
+                if (tabControl.ImageList == null)
+                {
+                    tabControl.ImageList = new ImageList
+                    {
+                        ColorDepth = ColorDepth.Depth32Bit,
+                        ImageSize = new System.Drawing.Size(16, 16),
+                    };
+                }
+
+                if (!tabControl.ImageList.Images.ContainsKey(TabImageKey))
+                {
+                    tabControl.ImageList.Images.Add(TabImageKey, DrawFunnelGlyph(
+                        VSColorTheme.GetThemedColor(EnvironmentColors.ToolWindowTextColorKey)));
+                }
+
+                _tabPage.ImageKey = TabImageKey;
+            }
+            catch (Exception ex)
+            {
+                _pane?.WriteFailure(nameof(ApplyTabIcon), ex);
+            }
+        }
+
+        private static System.Drawing.Bitmap DrawFunnelGlyph(System.Drawing.Color color)
+        {
+            var bitmap = new System.Drawing.Bitmap(16, 16);
+            using (var g = System.Drawing.Graphics.FromImage(bitmap))
+            using (var pen = new System.Drawing.Pen(color, 1.6f)
+            {
+                StartCap = System.Drawing.Drawing2D.LineCap.Round,
+                EndCap = System.Drawing.Drawing2D.LineCap.Round,
+                LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
+            })
+            {
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.DrawLines(pen, new[]
+                {
+                    new System.Drawing.PointF(2f, 3f),
+                    new System.Drawing.PointF(14f, 3f),
+                    new System.Drawing.PointF(9.5f, 9f),
+                    new System.Drawing.PointF(9.5f, 13.5f),
+                    new System.Drawing.PointF(6.5f, 12f),
+                    new System.Drawing.PointF(6.5f, 9f),
+                    new System.Drawing.PointF(2f, 3f),
+                });
+            }
+            return bitmap;
         }
 
         private void FallBackToToolWindow()

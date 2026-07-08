@@ -1,55 +1,85 @@
-# Filterable Results Grid for SSMS 22
+# Results View for SSMS 22
 
 A VSIX extension for SQL Server Management Studio 22 that adds a filterable
-grid view tightly integrated with query results. When you execute a query, it
-mirrors the result set into a WPF `DataGrid` tab (next to Results/Messages
-when host discovery succeeds) with a live filter box in the top right that
-substring-matches across every column.
+**Results View** tab next to the native Results/Messages tabs. After each
+query execution it captures the grid results through SSMS's own brokered
+services (no per-cell reflection, no UI-thread scraping) and renders them in
+a virtualized WPF `DataGrid` with live filtering, background sorting, match
+highlighting, and CSV export.
 
+![Results View](image.png)
 
-![Filterable Results Grid](image.png)
+## Features
 
+- **Filterable grid in the results pane** — a "Results View" tab is injected
+  directly into the query window's tab strip; filter state survives re-runs.
+- **"Results to Filterable Grid" toggle** — lives under *Query → Results To*
+  next to the native modes (with a Tools-menu fallback until the Query menu is
+  available): when checked, every completed query activates the Results View
+  automatically; when unchecked, use *Show Results View* on demand.
+- **Preferences** (*Tools → Options → Results View*) — grid font size,
+  alternate row colors (theme-derived tint), maximum captured rows, and
+  maximum characters per cell for wide tables.
+- **Fast on large result sets** — rows are captured asynchronously in 5,000-row
+  pages off the UI thread and stream into the grid progressively; filtering
+  and sorting run on background threads with cancellation, so typing in the
+  filter box never blocks the UI.
+- **Multiple result sets** — a selector lists every grid; secondary sets load
+  lazily on first selection.
+- **Filter modes** — Contains / Starts With / Exact, optional case sensitivity,
+  match highlighting, and a live row counter (`42 of 1,337 rows`).
+- **Copy & CSV export** of the currently visible (filtered) rows.
+- **Theming & localization** — colors resolve from the running VS theme
+  (Light/Dark/Blue/High-Contrast) and all UI strings live in `.resx` resources.
+- **Diagnostics** — failures are logged to a "Results View" pane in the Output
+  window; the success path stays silent.
 
-## What this does (and does not) do
+## How it works
 
-SSMS's built-in results grid (`Microsoft.SqlServer.Management.UI.Grid.GridControl`)
-is instantiated by internal SSMS code and is **not replaceable** through any
-public VSIX seam — there is no MEF/composition hook to swap it out. Instead,
-this extension adds a companion view that is injected into the native
-Results/Messages tab host when possible (with a tool window fallback if SSMS
-layout internals differ), and:
+SSMS 22 exposes query grid data through brokered services
+(`IQueryEditorTabDataServiceBrokered`). The extension:
 
-- Auto-refreshes after each `Query.Execute` command.
-- Reads the current active grid's contents via reflection against
-`GridControl.GridStorage` / `GetCellDataAsString`.
-- Provides a top-right filter box with debounced live search and a row
-counter (`42 of 1,337 rows`).
+1. Observes (never consumes) the T-SQL *Execute* command with a priority
+   command target, then hooks query-completion events on the editor control
+   (with a bounded brokered-service poll as fallback).
+2. Reads grid segments in pages via the brokered contract — one RPC per page
+   of rows, resolved against both the SSMS 22.5 and 22.6+ method signatures.
+3. Injects a `TabPage` hosting the WPF view into the query window's native
+   tab strip (`TabPageHost`), falling back to a dockable tool window if the
+   host layout is unrecognized.
 
-If Microsoft changes `GridControl`'s internal shape in a future SSMS build,
-the reflection path will degrade gracefully: capture returns `null` and the
-tool window stays empty rather than crashing.
+The contracts DLL ships with SSMS and is loaded from the install directory at
+runtime, so the VSIX is publicly distributable with zero configuration.
 
 ## Prerequisites
 
-- **Visual Studio 2022** (17.8 or newer) with the
-*Visual Studio extension development* workload.
-- **.NET Framework 4.7.2** developer pack.
-- **SQL Server Management Studio 22** (for testing the installed VSIX).
-SSMS 22 hosts the Visual Studio 2022 shell natively, so any VSIX built
-against the 17.x `Microsoft.VisualStudio.SDK` loads in it directly.
+- **Visual Studio 2022** (17.14 or newer) with the
+  *Visual Studio extension development* workload.
+- **.NET Framework 4.8** developer pack.
+- **SQL Server Management Studio 22** (for running the installed VSIX).
 
-## Build
+## Build & test
 
 ```powershell
 # From the repo root:
 msbuild SsmsResultsGrid.sln /t:Restore /p:Configuration=Release
 msbuild SsmsResultsGrid.sln /t:Build   /p:Configuration=Release
+
+# Core engine unit tests (filtering, sorting, CSV, view-model behavior):
+dotnet test tests\SsmsResultsGrid.Core.Tests
 ```
 
 The packaged extension lands at:
 
 ```
 src\SsmsResultsGrid\bin\Release\SsmsResultsGrid.vsix
+```
+
+Or use the one-shot script that builds, uninstalls any previous version, and
+installs into SSMS 22:
+
+```powershell
+.\build-reinstall.ps1 -Configuration Release -CloseSsms -RelaunchSsms
 ```
 
 ## Install
@@ -63,45 +93,49 @@ is not offered in the installer, drop the file here and restart SSMS:
 
 ## Use
 
-1. Open a query window and execute any `SELECT` in SSMS.
-2. A **Filter** tab appears in the query's result area (or you can open it
-  manually via *Tools → Show Filterable Results Grid*).
-3. Type in the filter box in the top right — the grid narrows in real time.
-4. Hit **Refresh** to re-capture the current result set on demand.
+1. Open a query window and execute any `SELECT` (try `test-queries.sql`).
+2. The **Results View** tab appears next to Results/Messages and activates
+   automatically (toggle this via *Tools → Results to Filterable Grid*).
+3. Type in the filter box — the grid narrows in real time with matches
+   highlighted. Switch filter mode or case sensitivity as needed.
+4. Click a column header to sort (asc → desc → unsorted) on a background thread.
+5. Use **Copy** / **Export CSV** for the visible rows, **Refresh** to
+   re-capture on demand.
 
 ## Project layout
 
 ```
-src/SsmsResultsGrid/
-├── FilterableGridPackage.cs           # AsyncPackage entry point
-├── FilterableGridPackage.vsct         # command table (Tools menu item)
-├── PackageGuids.cs
-├── source.extension.vsixmanifest      # targets VS 17.x + SSMS 22
-├── Commands/
-│   └── ShowFilterableGridCommand.cs   # Tools-menu command
+src/SsmsResultsGrid/                    # VSIX (net48, VS SDK 17.14)
+├── FilterableGridPackage.cs            # AsyncPackage entry point
+├── FilterableGridPackage.vsct          # Tools-menu commands (show + toggle)
+├── Commands/                           # ShowFilterableGridCommand, ToggleResultsToGridCommand
 ├── Services/
-│   ├── QueryExecutionListener.cs      # priority command target → poll for results
-│   ├── SsmsGridCaptureService.cs      # reflection against GridControl internals
-│   └── InlineFilterTabService.cs      # injects/updates inline Filter tab
-└── ToolWindows/
-    ├── FilterableGridToolWindow.cs
-    ├── FilterableGridControl.xaml     # DataGrid + top-right filter TextBox
-    └── FilterableGridControl.xaml.cs  # debounced filter, row counter
+│   ├── Capture/                        # brokered-service client + paged grid reader
+│   ├── Execution/                      # priority command target observing Execute
+│   ├── InPaneTab/                      # per-query-window supervisor + tab injection
+│   ├── Diagnostics/                    # Output-window pane
+│   └── Settings/                       # persisted user settings
+├── Views/                              # ResultsViewControl (MVVM view) + helpers
+└── ToolWindows/                        # dockable fallback host
+
+src/SsmsResultsGrid.Core/               # portable engine (netstandard2.0)
+├── Models/                             # ResultRow, CapturedBatch
+├── Filtering/ Sorting/ Export/         # cancellable filter/sort engines, CSV writer
+├── Mvvm/                               # ObservableObject, RelayCommand, AsyncRelayCommand
+└── ViewModels/                         # ResultsViewModel, ResultSetViewModel
+
+tests/SsmsResultsGrid.Core.Tests/       # xUnit tests for the Core engine
 ```
 
 ## Known limitations
 
-- **Multiple result sets**: only the active/topmost grid is captured.
-Re-click the result tab you want, then click **Refresh**.
-- **BLOB / image columns**: captured as their string representation (per
-SSMS's own `GetCellDataAsString`).
-- **Huge result sets**: capture is capped at 100,000 rows to keep the WPF
-virtualization path responsive. Adjust `MaxRowsToCapture` in
-`SsmsGridCaptureService` if you need more.
-- **Results-to-text / Results-to-file modes**: there is no grid to capture;
-the tool window stays empty.
+- **Row cap**: capture is capped at 100,000 rows per result set by default
+  (configurable under *Tools → Options → Results View*) to keep the grid
+  responsive; the status bar indicates truncation.
+- **BLOB / image columns**: captured as their string representation.
+- **Results-to-text / Results-to-file modes**: there is no grid to capture.
 - **SSMS 20 and earlier** used the VS Isolated Shell and a different VSIX
-target schema. This project targets SSMS 22 only.
+  target schema. This project targets SSMS 22 only.
 
 ## License
 

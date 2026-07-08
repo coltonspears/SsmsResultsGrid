@@ -105,6 +105,30 @@ function Stop-ToolingProcesses {
     Get-Process -Name "VSIXInstaller" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
+function Invoke-VsixInstaller {
+    param(
+        [string]$InstallerPath,
+        [string[]]$Arguments
+    )
+
+    # VSIXInstaller.exe is a GUI-subsystem executable: PowerShell's call operator
+    # does not wait for it and $LASTEXITCODE is meaningless. Start-Process -Wait
+    # is required to get the real exit code.
+    $process = Start-Process -FilePath $InstallerPath -ArgumentList $Arguments -Wait -PassThru
+    return $process.ExitCode
+}
+
+function Get-SsmsInstanceId {
+    $vswhere = Get-VsWherePath
+    if (-not $vswhere) { return $null }
+
+    $instances = & $vswhere -all -prerelease -products * -format json | ConvertFrom-Json
+    $ssms = $instances | Where-Object { $_.productId -eq "Microsoft.VisualStudio.Product.Ssms" } |
+        Sort-Object installationVersion -Descending | Select-Object -First 1
+    if ($ssms) { return $ssms.instanceId }
+    return $null
+}
+
 function Remove-ExistingVsixForBuild {
     param([string]$VsixPath)
 
@@ -131,8 +155,10 @@ function Invoke-Build {
     $msbuild = Resolve-MSBuildPath
     if ($msbuild) {
         Write-Step "Using MSBuild: $msbuild"
+        # DeployExtension=false: skip the VSSDK's automatic deploy into the building
+        # VS's Experimental-instance hive; VSIXInstaller below is the only deployment.
         Invoke-External -FilePath $msbuild -Arguments @($SolutionPath, "/t:Restore", "/p:Configuration=$Configuration", "/m")
-        Invoke-External -FilePath $msbuild -Arguments @($SolutionPath, "/t:Build", "/p:Configuration=$Configuration", "/m")
+        Invoke-External -FilePath $msbuild -Arguments @($SolutionPath, "/t:Build", "/p:Configuration=$Configuration", "/p:DeployExtension=false", "/m")
         return
     }
 
@@ -168,35 +194,77 @@ function Find-InstalledExtension {
         [string]$ExtensionId
     )
 
-    $roots = @(
-        (Join-Path $env:LocalAppData "Microsoft\SQL Server Management Studio\22.0\Extensions"),
-        (Join-Path $env:LocalAppData "Microsoft\VisualStudio")
-    )
+    # SSMS 22 keeps per-user extensions under %LocalAppData%\Microsoft\SSMS\22.0_<instanceId>.
+    # Only that hive counts as "installed for SSMS" — the VS hives are irrelevant here.
+    $root = Join-Path $env:LocalAppData "Microsoft\SSMS"
+    if (-not (Test-Path $root)) { return $null }
 
     $hits = New-Object System.Collections.Generic.List[object]
-    foreach ($root in $roots) {
-        if (-not (Test-Path $root)) { continue }
-        $manifests = Get-ChildItem -LiteralPath $root -Filter "*.vsixmanifest" -Recurse -ErrorAction SilentlyContinue
-        foreach ($manifest in $manifests) {
-            try {
-                [xml]$xml = Get-Content -LiteralPath $manifest.FullName
-                $identity = $xml.PackageManifest.Metadata.Identity
-                if (-not $identity) { continue }
-                if ($identity.Id -eq $ExtensionId) {
-                    $hits.Add([pscustomobject]@{
-                        Path = $manifest.FullName
-                        Version = [string]$identity.Version
-                        LastWriteTime = $manifest.LastWriteTimeUtc
-                    })
-                }
-            } catch {
-                continue
+    $manifests = Get-ChildItem -LiteralPath $root -Filter "*.vsixmanifest" -Recurse -ErrorAction SilentlyContinue
+    foreach ($manifest in $manifests) {
+        try {
+            [xml]$xml = Get-Content -LiteralPath $manifest.FullName
+            $identity = $xml.PackageManifest.Metadata.Identity
+            if (-not $identity) { continue }
+            if ($identity.Id -eq $ExtensionId) {
+                $hits.Add([pscustomobject]@{
+                    Path = $manifest.FullName
+                    Version = [string]$identity.Version
+                    LastWriteTime = $manifest.LastWriteTimeUtc
+                })
             }
+        } catch {
+            continue
         }
     }
 
     if ($hits.Count -eq 0) { return $null }
     return $hits | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+}
+
+function Remove-StaleExtensionCopies {
+    param(
+        [string]$ExtensionId,
+        [switch]$IncludeSsmsHive
+    )
+
+    # Deletes leftover extension folders directly. Used for copies that earlier
+    # (over-broad) manifests installed into Visual Studio hives, and as a fallback
+    # when VSIXInstaller cannot run because other VS processes are open. The host
+    # rebuilds its extension cache on next start after the folder disappears.
+    $roots = New-Object System.Collections.Generic.List[string]
+    $vsRoot = Join-Path $env:LocalAppData "Microsoft\VisualStudio"
+    if (Test-Path $vsRoot) {
+        Get-ChildItem -LiteralPath $vsRoot -Directory |
+            Where-Object { $_.Name -match '^\d+\.0_' } |
+            ForEach-Object { $roots.Add((Join-Path $_.FullName "Extensions")) }
+    }
+    if ($IncludeSsmsHive) {
+        $ssmsRoot = Join-Path $env:LocalAppData "Microsoft\SSMS"
+        if (Test-Path $ssmsRoot) {
+            Get-ChildItem -LiteralPath $ssmsRoot -Directory |
+                ForEach-Object { $roots.Add((Join-Path $_.FullName "Extensions")) }
+        }
+    }
+
+    $removed = 0
+    foreach ($root in $roots) {
+        if (-not (Test-Path $root)) { continue }
+        $manifests = Get-ChildItem -LiteralPath $root -Filter "extension.vsixmanifest" -Recurse -ErrorAction SilentlyContinue
+        foreach ($manifest in $manifests) {
+            try {
+                [xml]$xml = Get-Content -LiteralPath $manifest.FullName
+                if ($xml.PackageManifest.Metadata.Identity.Id -ne $ExtensionId) { continue }
+                $dir = Split-Path -Parent $manifest.FullName
+                Write-Step "Removing stale copy: $dir"
+                Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction Stop
+                $removed++
+            } catch {
+                Write-Warning "Could not remove stale copy near $($manifest.FullName): $_"
+            }
+        }
+    }
+    return $removed
 }
 
 $repoRoot = Split-Path -Parent $PSCommandPath
@@ -234,17 +302,45 @@ if (-not $vsixInstaller) {
 }
 
 Write-Step "Using VSIXInstaller: $vsixInstaller"
+
+# Scope every VSIXInstaller call to the SSMS instance. Without this, the installer
+# also targets any Visual Studio SKU that ever had the extension and refuses to run
+# while unrelated VS processes (MSBuild, ServiceHub, devenv) are open.
+$ssmsInstanceId = Get-SsmsInstanceId
+if ($ssmsInstanceId) {
+    Write-Step "SSMS instance ID: $ssmsInstanceId"
+} else {
+    Write-Warning "Could not resolve the SSMS instance ID via vswhere; VSIXInstaller will target all applicable SKUs."
+}
+
 if (-not $SkipUninstall) {
-    Write-Step "Uninstalling previous extension version (best effort)."
-    try {
-        Invoke-External -FilePath $vsixInstaller -Arguments @("/quiet", "/uninstall:$($identity.Id)") -Quiet
-    } catch {
-        Write-Step "Previous uninstall may have failed or extension was not installed. Continuing."
+    Write-Step "Uninstalling previous extension version."
+    $uninstallArgs = @("/quiet", "/uninstall:$($identity.Id)")
+    if ($ssmsInstanceId) { $uninstallArgs += "/instanceIds:$ssmsInstanceId" }
+    $exitCode = Invoke-VsixInstaller -InstallerPath $vsixInstaller -Arguments $uninstallArgs
+    switch ($exitCode) {
+        0       { Write-Step "Uninstall completed." }
+        1002    { Write-Step "Extension was not installed (nothing to uninstall)." }
+        default {
+            Write-Warning "VSIXInstaller uninstall exited with code $exitCode. Falling back to direct folder removal."
+            Remove-StaleExtensionCopies -ExtensionId $identity.Id -IncludeSsmsHive | Out-Null
+        }
     }
 }
 
+Write-Step "Cleaning stale copies out of Visual Studio hives (best effort)."
+$staleCount = Remove-StaleExtensionCopies -ExtensionId $identity.Id
+if ($staleCount -gt 0) {
+    Write-Step "Removed $staleCount stale cop$(if ($staleCount -eq 1) { 'y' } else { 'ies' }) from VS hives."
+}
+
 Write-Step "Installing VSIX: $vsixPath"
-Invoke-External -FilePath $vsixInstaller -Arguments @("/quiet", "/shutdownprocesses", $vsixPath) -Quiet
+$installArgs = @("/quiet", "/shutdownprocesses", $vsixPath)
+if ($ssmsInstanceId) { $installArgs += "/instanceIds:$ssmsInstanceId" }
+$exitCode = Invoke-VsixInstaller -InstallerPath $vsixInstaller -Arguments $installArgs
+if ($exitCode -ne 0 -and $exitCode -ne 1001) {
+    throw "VSIXInstaller install failed with exit code $exitCode."
+}
 
 Write-Step "Verifying installed extension version."
 $installed = Find-InstalledExtension -ExtensionId $identity.Id

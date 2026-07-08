@@ -15,8 +15,16 @@
         <Parent guid="guidCmdSet" id="ToolsMenuGroup" />
         <Icon guid="guidImages" id="bmpFilter" />
         <Strings>
-          <ButtonText>Show Filterable Results Grid</ButtonText>
-          <CommandName>SsmsResultsGrid.ShowFilterableGrid</CommandName>
+          <ButtonText>Show Results View</ButtonText>
+          <CommandName>SsmsResultsGrid.ShowResultsView</CommandName>
+        </Strings>
+      </Button>
+      <Button guid="guidCmdSet" id="ToggleResultsToGridCmd" priority="0x0101" type="Button">
+        <Parent guid="guidCmdSet" id="ToolsMenuGroup" />
+        <CommandFlag>TextChanges</CommandFlag>
+        <Strings>
+          <ButtonText>Results to Filterable Grid</ButtonText>
+          <CommandName>SsmsResultsGrid.ToggleResultsToGrid</CommandName>
         </Strings>
       </Button>
     </Buttons>
@@ -31,6 +39,7 @@
     <GuidSymbol name="guidCmdSet" value="{8f1c9c2c-4f0a-4e9e-9d7b-1e2a4f3b0002}">
       <IDSymbol name="ToolsMenuGroup" value="0x1020" />
       <IDSymbol name="ShowFilterableGridCmd" value="0x0100" />
+      <IDSymbol name="ToggleResultsToGridCmd" value="0x0101" />
     </GuidSymbol>
     <GuidSymbol name="guidImages" value="{8f1c9c2c-4f0a-4e9e-9d7b-1e2a4f3b0004}">
       <IDSymbol name="bmpFilter" value="1" />

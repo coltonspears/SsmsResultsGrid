@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="SsmsResultsGrid.8f1c9c2c-4f0a-4e9e-9d7b-1e2a4f3b0001" Version="0.1.0" Language="en-US" Publisher="Colton Spears" />
-    <DisplayName>Filterable Results Grid for SSMS 22</DisplayName>
-    <Description xml:space="preserve">Adds a dockable "Filterable Results" tool window that mirrors the most recent query result set with a top-right live-search filter box. Targets SQL Server Management Studio 22 (Visual Studio 2022 shell).</Description>
+    <Identity Id="SsmsResultsGrid.8f1c9c2c-4f0a-4e9e-9d7b-1e2a4f3b0001" Version="1.0.0" Language="en-US" Publisher="Colton Spears" />
+    <DisplayName>Results View for SSMS 22</DisplayName>
+    <Description xml:space="preserve">Adds a filterable "Results View" tab next to the native Results/Messages tabs in SQL Server Management Studio 22. Live filtering, background sorting, match highlighting, CSV export, multiple result sets, VS theming, and localization-ready resources.</Description>
     <MoreInfo>https://github.com/coltonspears/SsmsResultsGrid</MoreInfo>
     <Icon>Resources\Icon.png</Icon>
     <PreviewImage>Resources\Preview.png</PreviewImage>
@@ -27,18 +27,9 @@
     <InstallationTarget Id="Microsoft.VisualStudio.Ssms.Community" Version="[22.0,23.0)">
       <ProductArchitecture>amd64</ProductArchitecture>
     </InstallationTarget>
-    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,19.0)">
-      <ProductArchitecture>amd64</ProductArchitecture>
-    </InstallationTarget>
-    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[17.0,19.0)">
-      <ProductArchitecture>amd64</ProductArchitecture>
-    </InstallationTarget>
-    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.0,19.0)">
-      <ProductArchitecture>amd64</ProductArchitecture>
-    </InstallationTarget>
   </Installation>
   <Dependencies>
-    <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.7.2,)" />
+    <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.8,)" />
   </Dependencies>
   <Prerequisites>
     <!--

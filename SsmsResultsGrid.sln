@@ -1,9 +1,13 @@
 
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.12.0.0
+VisualStudioVersion = 17.14.0.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SsmsResultsGrid", "src\SsmsResultsGrid\SsmsResultsGrid.csproj", "{8F1C9C2C-4F0A-4E9E-9D7B-1E2A4F3B0001}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SsmsResultsGrid.Core", "src\SsmsResultsGrid.Core\SsmsResultsGrid.Core.csproj", "{2B6F4A10-9C3E-4D2B-8A51-6F0D7C9E1002}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SsmsResultsGrid.Core.Tests", "tests\SsmsResultsGrid.Core.Tests\SsmsResultsGrid.Core.Tests.csproj", "{7D3E5B21-0A4F-4C6D-9B82-3E1F8A0D2003}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +19,14 @@ Global
 		{8F1C9C2C-4F0A-4E9E-9D7B-1E2A4F3B0001}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8F1C9C2C-4F0A-4E9E-9D7B-1E2A4F3B0001}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8F1C9C2C-4F0A-4E9E-9D7B-1E2A4F3B0001}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B6F4A10-9C3E-4D2B-8A51-6F0D7C9E1002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B6F4A10-9C3E-4D2B-8A51-6F0D7C9E1002}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B6F4A10-9C3E-4D2B-8A51-6F0D7C9E1002}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B6F4A10-9C3E-4D2B-8A51-6F0D7C9E1002}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7D3E5B21-0A4F-4C6D-9B82-3E1F8A0D2003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7D3E5B21-0A4F-4C6D-9B82-3E1F8A0D2003}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7D3E5B21-0A4F-4C6D-9B82-3E1F8A0D2003}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7D3E5B21-0A4F-4C6D-9B82-3E1F8A0D2003}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

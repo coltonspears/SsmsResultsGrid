@@ -1,40 +1,31 @@
-using System;
-using System.Data;
 using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.Shell;
+using SsmsResultsGrid.Core.ViewModels;
+using SsmsResultsGrid.Views;
 
 namespace SsmsResultsGrid.ToolWindows
 {
+    /// <summary>
+    /// Dockable fallback host for <see cref="ResultsViewControl"/>, used only when
+    /// in-pane tab injection fails on an unexpected SSMS build. Content mirrors the
+    /// same view model the tab would have shown.
+    /// </summary>
     [Guid(PackageGuids.ToolWindowGuidString)]
     public sealed class FilterableGridToolWindow : ToolWindowPane
     {
-        private readonly FilterableGridControl _control;
+        private readonly ResultsViewControl _control;
 
         public FilterableGridToolWindow() : base(null)
         {
-            Caption = "Filterable Results";
-            _control = new FilterableGridControl();
+            Caption = Resources.Strings.ToolWindowCaption;
+            _control = new ResultsViewControl();
+            _control.ApplySettings(Services.Settings.ExtensionSettings.Instance);
             Content = _control;
         }
 
-        public void LoadData(DataTable table)
+        public void Bind(ResultsViewModel viewModel)
         {
-            if (table == null) return;
-            _control.LoadData(table);
-        }
-
-        public void LoadCaptureResult(DataTable table, string failureReason, string contextKey)
-        {
-            if (!string.IsNullOrWhiteSpace(contextKey))
-            {
-                Caption = "Filterable Results - " + System.IO.Path.GetFileName(contextKey);
-            }
-            else
-            {
-                Caption = "Filterable Results";
-            }
-
-            _control.LoadCaptureResult(table, failureReason);
+            _control.DataContext = viewModel;
         }
     }
 }

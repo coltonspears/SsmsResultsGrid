@@ -11,6 +11,7 @@ namespace SsmsResultsGrid
         public static readonly Guid CommandSet = new Guid(CommandSetGuidString);
 
         public const int ShowFilterableGridCmdId = 0x0100;
+        public const int ToggleResultsToGridCmdId = 0x0101;
         public const int ToolsMenuGroupId = 0x1020;
     }
 }

@@ -37,19 +37,26 @@ namespace SsmsResultsGrid.Services.Diagnostics
                 message,
                 Environment.NewLine);
 
-            _ = _package.JoinableTaskFactory.RunAsync(async () =>
+            _ = _package.JoinableTaskFactory.RunAsync(() => WriteAsync(line));
+        }
+
+        private async System.Threading.Tasks.Task WriteAsync(string line)
+        {
+            try
             {
-                try
-                {
-                    await _package.JoinableTaskFactory.SwitchToMainThreadAsync(_package.DisposalToken);
-                    var pane = EnsurePane();
-                    pane?.OutputStringThreadSafe(line);
-                }
-                catch
-                {
-                    // Logging must never take the host down.
-                }
-            });
+                await _package.JoinableTaskFactory.SwitchToMainThreadAsync(_package.DisposalToken);
+                WriteLineOnMainThread(line);
+            }
+            catch
+            {
+                // Logging must never take the host down.
+            }
+        }
+
+        private void WriteLineOnMainThread(string line)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            EnsurePane()?.OutputStringThreadSafe(line);
         }
 
         private IVsOutputWindowPane EnsurePane()

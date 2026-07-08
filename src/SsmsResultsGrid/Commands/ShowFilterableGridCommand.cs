@@ -1,24 +1,28 @@
 using System;
 using System.ComponentModel.Design;
 using Microsoft.VisualStudio.Shell;
-using SsmsResultsGrid.Services;
+using SsmsResultsGrid.Services.Execution;
+using SsmsResultsGrid.Services.InPaneTab;
 using Task = System.Threading.Tasks.Task;
 
 namespace SsmsResultsGrid.Commands
 {
+    /// <summary>
+    /// Tools-menu command that captures the active query window's grid results on
+    /// demand and shows/activates the injected "Results View" tab.
+    /// </summary>
     internal sealed class ShowFilterableGridCommand
     {
-        private readonly AsyncPackage _package;
+        private readonly FilterableGridPackage _package;
 
-        private ShowFilterableGridCommand(AsyncPackage package, OleMenuCommandService commandService)
+        private ShowFilterableGridCommand(FilterableGridPackage package, OleMenuCommandService commandService)
         {
             _package = package;
             var cmdId = new CommandID(PackageGuids.CommandSet, PackageGuids.ShowFilterableGridCmdId);
-            var cmd = new MenuCommand(Execute, cmdId);
-            commandService.AddCommand(cmd);
+            commandService.AddCommand(new MenuCommand(Execute, cmdId));
         }
 
-        public static async Task InitializeAsync(AsyncPackage package)
+        public static async Task InitializeAsync(FilterableGridPackage package)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
             var commandService = await package.GetServiceAsync(typeof(IMenuCommandService)) as OleMenuCommandService
@@ -30,23 +34,26 @@ namespace SsmsResultsGrid.Commands
         {
             _ = _package.JoinableTaskFactory.RunAsync(async () =>
             {
-                await _package.JoinableTaskFactory.SwitchToMainThreadAsync();
-                // Trigger an on-demand capture so the user sees current data immediately.
-                if (FilterableGridPackage.Instance?.CaptureService != null)
+                try
                 {
-                    DebugOutput.Write("Manual filterable grid command invoked.");
-                    var table = FilterableGridPackage.Instance.CaptureService.TryCaptureActiveDetailed(out _);
-                    var failure = table == null ? FilterableGridPackage.Instance.CaptureService.LastFailureReason : null;
+                    await _package.JoinableTaskFactory.SwitchToMainThreadAsync(_package.DisposalToken);
 
-                    var sourceGrid = FilterableGridPackage.Instance.CaptureService.LastCapturedGridControl;
-                    if (FilterableGridPackage.Instance.InlineTabService != null &&
-                        FilterableGridPackage.Instance.InlineTabService.TryShowOrUpdate(sourceGrid, table, failure, activateTab: true, out var reason))
+                    var docView = ActiveDocViewResolver.GetActiveSqlEditorDocView(_package);
+                    if (docView == null)
                     {
-                        DebugOutput.Write("Manual command pushed capture inline: " + reason);
+                        _package.Diagnostics?.WriteInfo(
+                            "Show Results View invoked without an active SQL query window.");
                         return;
                     }
 
-                    DebugOutput.Write("Manual command could not show inline filterable grid.");
+                    var supervisor = ResultsTabSupervisor.GetOrCreate(
+                        docView, _package, _package.Diagnostics, _package.Settings);
+                    await supervisor.ShowAsync();
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    _package.Diagnostics?.WriteFailure(nameof(ShowFilterableGridCommand), ex);
                 }
             });
         }
