@@ -19,6 +19,7 @@ namespace SsmsResultsGrid.ToolWindows
         {
             Caption = Resources.Strings.ToolWindowCaption;
             _control = new ResultsViewControl();
+            _control.ApplySettings(Services.Settings.ExtensionSettings.Instance);
             Content = _control;
         }
 

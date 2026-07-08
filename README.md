@@ -13,10 +13,13 @@ highlighting, and CSV export.
 
 - **Filterable grid in the results pane** — a "Results View" tab is injected
   directly into the query window's tab strip; filter state survives re-runs.
-- **"Results to Filterable Grid" toggle** (*Tools* menu) — like the native
-  *Results To* options: when checked, every completed query activates the
-  Results View automatically; when unchecked, use *Tools → Show Results View*
-  on demand.
+- **"Results to Filterable Grid" toggle** — lives under *Query → Results To*
+  next to the native modes (with a Tools-menu fallback until the Query menu is
+  available): when checked, every completed query activates the Results View
+  automatically; when unchecked, use *Show Results View* on demand.
+- **Preferences** (*Tools → Options → Results View*) — grid font size,
+  alternate row colors (theme-derived tint), maximum captured rows, and
+  maximum characters per cell for wide tables.
 - **Fast on large result sets** — rows are captured asynchronously in 5,000-row
   pages off the UI thread and stream into the grid progressively; filtering
   and sorting run on background threads with cancellation, so typing in the
@@ -126,9 +129,9 @@ tests/SsmsResultsGrid.Core.Tests/       # xUnit tests for the Core engine
 
 ## Known limitations
 
-- **Row cap**: capture is capped at 100,000 rows per result set (configurable
-  via the `SsmsResultsGrid` collection in the VS settings store) to keep the
-  grid responsive; the status bar indicates truncation.
+- **Row cap**: capture is capped at 100,000 rows per result set by default
+  (configurable under *Tools → Options → Results View*) to keep the grid
+  responsive; the status bar indicates truncation.
 - **BLOB / image columns**: captured as their string representation.
 - **Results-to-text / Results-to-file modes**: there is no grid to capture.
 - **SSMS 20 and earlier** used the VS Isolated Shell and a different VSIX

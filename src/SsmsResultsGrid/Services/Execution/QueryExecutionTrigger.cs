@@ -35,6 +35,9 @@ namespace SsmsResultsGrid.Services.Execution
             _pane = pane;
         }
 
+        /// <summary>Optional main-thread hook invoked on every observed Execute (e.g. menu placement retry).</summary>
+        public Action OnExecuteMainThread { get; set; }
+
         public async Task StartAsync(System.Threading.CancellationToken ct)
         {
             await _package.JoinableTaskFactory.SwitchToMainThreadAsync(ct);
@@ -54,6 +57,7 @@ namespace SsmsResultsGrid.Services.Execution
 
         public void Dispose()
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
             if (_registrar != null && _cookie != 0)
             {
                 try { _registrar.UnregisterPriorityCommandTarget(_cookie); }
@@ -71,11 +75,17 @@ namespace SsmsResultsGrid.Services.Execution
 
         public int Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut)
         {
-            if (pguidCmdGroup == SqlEditorCmdSet && nCmdID == ExecuteCmdId && _settings.ResultsToFilterGrid)
+            // Priority command targets are always invoked on the main thread.
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (pguidCmdGroup == SqlEditorCmdSet && nCmdID == ExecuteCmdId)
             {
                 try
                 {
-                    OnExecuteObserved();
+                    OnExecuteMainThread?.Invoke();
+                    if (_settings.ResultsToFilterGrid)
+                    {
+                        OnExecuteObserved();
+                    }
                 }
                 catch (Exception ex)
                 {

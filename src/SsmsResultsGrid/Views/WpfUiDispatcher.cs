@@ -27,7 +27,11 @@ namespace SsmsResultsGrid.Views
         public void Post(Action action)
         {
             if (action == null) return;
-            _dispatcher.BeginInvoke(new Action(() =>
+            // VSTHRD001: Dispatcher.BeginInvoke is deliberate here — the progressive-load
+            // pipeline requires strict FIFO ordering of posted actions, which
+            // SwitchToMainThreadAsync does not guarantee across JTF continuations.
+#pragma warning disable VSTHRD001
+            _ = _dispatcher.BeginInvoke(new Action(() =>
             {
                 try
                 {
@@ -38,6 +42,7 @@ namespace SsmsResultsGrid.Views
                     _pane?.WriteFailure("UiDispatcher.Post", ex);
                 }
             }), DispatcherPriority.Normal);
+#pragma warning restore VSTHRD001
         }
     }
 }

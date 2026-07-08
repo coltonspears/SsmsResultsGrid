@@ -78,4 +78,10 @@
   <data name="CsvDefaultFileName" xml:space="preserve">
     <value>results-view.csv</value>
   </data>
+  <data name="CmdToggleResultsToGrid" xml:space="preserve">
+    <value>Results to Filterable Grid</value>
+  </data>
+  <data name="CmdShowResultsView" xml:space="preserve">
+    <value>Show Results View</value>
+  </data>
 </root>

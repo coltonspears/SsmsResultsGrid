@@ -81,7 +81,9 @@
     <Compile Include="Services\Execution\QueryExecutionTrigger.cs" />
     <Compile Include="Services\InPaneTab\ResultsTabSupervisor.cs" />
     <Compile Include="Services\InPaneTab\TabPageHostResolver.cs" />
+    <Compile Include="Services\Menu\QueryMenuPlacement.cs" />
     <Compile Include="Services\Settings\ExtensionSettings.cs" />
+    <Compile Include="Services\Settings\ResultsViewOptionsPage.cs" />
     <Compile Include="ToolWindows\FilterableGridToolWindow.cs" />
     <Compile Include="Views\ResultsViewControl.xaml.cs">
       <DependentUpon>ResultsViewControl.xaml</DependentUpon>

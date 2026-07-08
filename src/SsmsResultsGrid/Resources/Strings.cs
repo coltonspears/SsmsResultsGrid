@@ -36,5 +36,7 @@ namespace SsmsResultsGrid.Resources
         public static string ResultSetSelectorTooltip => Get(nameof(ResultSetSelectorTooltip));
         public static string CsvDialogFilter => Get(nameof(CsvDialogFilter));
         public static string CsvDefaultFileName => Get(nameof(CsvDefaultFileName));
+        public static string CmdToggleResultsToGrid => Get(nameof(CmdToggleResultsToGrid));
+        public static string CmdShowResultsView => Get(nameof(CmdShowResultsView));
     }
 }

@@ -9,6 +9,7 @@ using System.Windows.Input;
 using Microsoft.Win32;
 using SsmsResultsGrid.Core.Models;
 using SsmsResultsGrid.Core.ViewModels;
+using SsmsResultsGrid.Services.Settings;
 using UiStrings = SsmsResultsGrid.Resources.Strings;
 
 namespace SsmsResultsGrid.Views
@@ -23,11 +24,64 @@ namespace SsmsResultsGrid.Views
     {
         private ResultsViewModel _viewModel;
         private ResultSetViewModel _attachedSet;
+        private ExtensionSettings _settings;
 
         public ResultsViewControl()
         {
             InitializeComponent();
             DataContextChanged += OnDataContextChanged;
+            Unloaded += OnUnloaded;
+        }
+
+        // ---- user preferences ----
+
+        /// <summary>Applies persisted preferences and tracks later changes from Tools &gt; Options.</summary>
+        internal void ApplySettings(ExtensionSettings settings)
+        {
+            if (_settings != null)
+            {
+                _settings.Changed -= OnSettingsChanged;
+            }
+
+            _settings = settings;
+
+            if (_settings != null)
+            {
+                _settings.Changed += OnSettingsChanged;
+            }
+            ApplySettingsToView();
+        }
+
+        private void OnSettingsChanged(object sender, EventArgs e)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                ApplySettingsToView();
+            }
+            else
+            {
+                // VSTHRD001: this WPF view has no JoinableTaskFactory; marshaling to its
+                // own dispatcher for a pure-UI property update cannot deadlock.
+#pragma warning disable VSTHRD001
+                _ = Dispatcher.BeginInvoke(new Action(ApplySettingsToView));
+#pragma warning restore VSTHRD001
+            }
+        }
+
+        private void ApplySettingsToView()
+        {
+            if (_settings == null) return;
+            ResultsGrid.FontSize = _settings.GridFontSize;
+            // AlternationCount 1 keeps every row at index 0, disabling the zebra trigger.
+            ResultsGrid.AlternationCount = _settings.AlternateRowColors ? 2 : 1;
+        }
+
+        private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            if (_settings != null)
+            {
+                _settings.Changed -= OnSettingsChanged;
+            }
         }
 
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -217,22 +271,27 @@ namespace SsmsResultsGrid.Views
             }
         }
 
-        private async void ExportCsvButton_Click(object sender, RoutedEventArgs e)
+        private void ExportCsvButton_Click(object sender, RoutedEventArgs e)
         {
-            var set = _attachedSet;
-            if (set == null || set.VisibleRows.Count == 0) return;
+            _ = ExportCsvAsync();
+        }
 
-            var dialog = new SaveFileDialog
-            {
-                Filter = UiStrings.CsvDialogFilter,
-                FileName = UiStrings.CsvDefaultFileName,
-                AddExtension = true,
-                OverwritePrompt = true
-            };
-            if (dialog.ShowDialog() != true) return;
-
+        private async System.Threading.Tasks.Task ExportCsvAsync()
+        {
             try
             {
+                var set = _attachedSet;
+                if (set == null || set.VisibleRows.Count == 0) return;
+
+                var dialog = new SaveFileDialog
+                {
+                    Filter = UiStrings.CsvDialogFilter,
+                    FileName = UiStrings.CsvDefaultFileName,
+                    AddExtension = true,
+                    OverwritePrompt = true
+                };
+                if (dialog.ShowDialog() != true) return;
+
                 int rows = await set.ExportVisibleRowsAsync(dialog.FileName, CancellationToken.None);
                 if (_viewModel != null)
                 {

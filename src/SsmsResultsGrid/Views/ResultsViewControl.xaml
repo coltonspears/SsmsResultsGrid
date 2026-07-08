@@ -150,14 +150,15 @@
         <!--  Default for any unstyled Button in this UserControl.  -->
         <Style TargetType="Button" BasedOn="{StaticResource FlatButton}" />
 
-        <!--  Icon-only square button for the inline clear X.  -->
+        <!--  Icon-only square button for the inline clear X. Uses a faint theme tint
+              instead of full transparency so the glyph reads as clickable.  -->
         <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
             <Setter Property="MinHeight" Value="20" />
             <Setter Property="Width" Value="22" />
             <Setter Property="Height" Value="22" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Background" Value="{DynamicResource Row.Zebra}" />
         </Style>
 
         <!--  ComboBox items share the flat palette.  -->
@@ -607,11 +608,12 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
-                                <Path Width="9"
-                                      Height="9"
+                                <Path Width="11"
+                                      Height="11"
+                                      Stretch="Uniform"
                                       Data="{StaticResource Icon.Clear}"
-                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                      StrokeThickness="1.4"
+                                      Stroke="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                                      StrokeThickness="1.8"
                                       StrokeStartLineCap="Round"
                                       StrokeEndLineCap="Round" />
                             </Button>
