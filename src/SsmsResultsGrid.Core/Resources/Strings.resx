@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="StatusNoResults" xml:space="preserve">
+    <value>No results captured. Run a query in SSMS.</value>
+  </data>
+  <data name="StatusCapturing" xml:space="preserve">
+    <value>Capturing results…</value>
+  </data>
+  <data name="StatusLoadingRows" xml:space="preserve">
+    <value>Loading {0:N0} of {1:N0} rows…</value>
+  </data>
+  <data name="StatusNoGridResults" xml:space="preserve">
+    <value>The last execution produced no grid results.</value>
+  </data>
+  <data name="StatusCaptureFailed" xml:space="preserve">
+    <value>Capture failed — see the Results View output pane for details.</value>
+  </data>
+  <data name="RowSummaryAll" xml:space="preserve">
+    <value>{0:N0} rows</value>
+  </data>
+  <data name="RowSummaryOne" xml:space="preserve">
+    <value>1 row</value>
+  </data>
+  <data name="RowSummaryFiltered" xml:space="preserve">
+    <value>{0:N0} of {1:N0} rows</value>
+  </data>
+  <data name="RowSummaryTruncated" xml:space="preserve">
+    <value>Showing first {0:N0} of {1:N0} rows (capture limit)</value>
+  </data>
+  <data name="SummaryFormat" xml:space="preserve">
+    <value>Rows: {0:N0} | Columns: {1:N0}</value>
+  </data>
+  <data name="FilterReady" xml:space="preserve">
+    <value>Filter: ready</value>
+  </data>
+  <data name="FilterLatency" xml:space="preserve">
+    <value>Filter: {0:N0} ms</value>
+  </data>
+  <data name="UpdatedAt" xml:space="preserve">
+    <value>Updated: {0}</value>
+  </data>
+  <data name="UpdatedNever" xml:space="preserve">
+    <value>Updated: --</value>
+  </data>
+  <data name="ResultSetTitle" xml:space="preserve">
+    <value>Result {0} ({1:N0} rows)</value>
+  </data>
+  <data name="ResultSetTitlePending" xml:space="preserve">
+    <value>Result {0}</value>
+  </data>
+  <data name="ExportComplete" xml:space="preserve">
+    <value>Exported {0:N0} rows to CSV.</value>
+  </data>
+  <data name="CopyComplete" xml:space="preserve">
+    <value>Selection copied to clipboard.</value>
+  </data>
+</root>
